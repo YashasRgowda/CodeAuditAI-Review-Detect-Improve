@@ -25,3 +25,9 @@ class Repository(Base):
 # Add relationship to User model
 from app.models.user import User
 User.repositories = relationship("Repository", back_populates="user")
+
+# Add relationship to PullRequest model (NEW)
+Repository.pull_requests = relationship("PullRequest", back_populates="repository")
+
+# Add relationship to PRAnalysis model (NEW)
+Repository.pr_analyses = relationship("PRAnalysis", back_populates="repository")

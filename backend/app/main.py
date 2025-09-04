@@ -2,12 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine
-from app.models import user, repository, analysis
+from app.models import user, repository, analysis, pull_request
+from app.models import user, repository, analysis, pull_request, pr_analysis
+
 
 # Create database tables
 user.Base.metadata.create_all(bind=engine)
 repository.Base.metadata.create_all(bind=engine)
 analysis.Base.metadata.create_all(bind=engine)
+pr_analysis.Base.metadata.create_all(bind=engine)
 
 # Create FastAPI app
 app = FastAPI(

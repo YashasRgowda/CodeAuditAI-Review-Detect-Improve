@@ -11,6 +11,11 @@ from app.repositories.models import (
     CommitResponse,
     CommitDiffResponse
 )
+from app.repositories.pull_request_models import (
+    PullRequestResponse,
+    GitHubPullRequestResponse, 
+    PullRequestFilesResponse
+)
 
 router = APIRouter()
 
@@ -201,6 +206,70 @@ async def get_commit_diff(
                 }
             ]
         )
+    
+@router.get("/debug/check-pr-table")
+async def check_pr_table(db: Session = Depends(get_db)):
+    """Debug endpoint to verify pull_requests table exists"""
+    try:
+        from app.models.pull_request import PullRequest
+        
+        # Try to query the table (should return empty list)
+        prs = db.query(PullRequest).all()
+        
+        return {
+            "table_exists": True,
+            "pr_count": len(prs),
+            "message": "pull_requests table created successfully"
+        }
+    except Exception as e:
+        return {
+            "table_exists": False,
+            "error": str(e),
+            "message": "Failed to access pull_requests table"
+        }
+    
+@router.get("/{repo_id}/pull-requests", response_model=List[GitHubPullRequestResponse])
+async def get_repository_pull_requests(
+    repo_id: int,
+    state: str = Query("open", description="PR state: open, closed, or all"),
+    limit: int = Query(10, le=50),
+    db: Session = Depends(get_db)
+):
+    """Get pull requests from a repository"""
+    repository = db.query(Repository).filter(Repository.id == repo_id).first()
+    if not repository:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    
+    user = db.query(User).filter(User.id == repository.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Repository owner not found")
+    
+    try:
+        prs = await github_service.get_repository_pull_requests(user, repository.repo_name, state, limit)
+        return [GitHubPullRequestResponse(**pr) for pr in prs]
+    except Exception as e:
+        return []
+
+@router.get("/{repo_id}/pull-requests/{pr_number}/files", response_model=PullRequestFilesResponse)
+async def get_pull_request_files(
+    repo_id: int,
+    pr_number: int,
+    db: Session = Depends(get_db)
+):
+    """Get detailed file changes for a specific pull request"""
+    repository = db.query(Repository).filter(Repository.id == repo_id).first()
+    if not repository:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    
+    user = db.query(User).filter(User.id == repository.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Repository owner not found")
+    
+    try:
+        pr_files = await github_service.get_pull_request_files(user, repository.repo_name, pr_number)
+        return PullRequestFilesResponse(**pr_files)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to get PR files: {str(e)}")
 
 @router.get("/debug/github-user")
 async def debug_github_user(db: Session = Depends(get_db)):

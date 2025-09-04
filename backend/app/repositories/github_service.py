@@ -148,5 +148,76 @@ class GitHubService:
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to fetch commit diff: {str(e)}")
 
+    async def get_repository_pull_requests(self, user: User, repo_full_name: str, state: str = "open", limit: int = 30) -> List[Dict[str, Any]]:
+        """Get pull requests from a repository"""
+        try:
+            g = Github(user.access_token)
+            repo = g.get_repo(repo_full_name)
+            
+            pull_requests = []
+            for pr in repo.get_pulls(state=state, sort="updated")[:limit]:
+                pr_data = {
+                    "id": pr.id,
+                    "number": pr.number,
+                    "title": pr.title,
+                    "body": pr.body,
+                    "state": pr.state,
+                    "user": pr.user.login,
+                    "html_url": pr.html_url,
+                    "base_branch": pr.base.ref,
+                    "head_branch": pr.head.ref,
+                    "created_at": pr.created_at.isoformat() if pr.created_at else None,
+                    "updated_at": pr.updated_at.isoformat() if pr.updated_at else None,
+                    "additions": pr.additions,
+                    "deletions": pr.deletions,
+                    "changed_files": pr.changed_files
+                }
+                pull_requests.append(pr_data)
+            
+            return pull_requests
+            
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch pull requests: {str(e)}")
+
+    async def get_pull_request_files(self, user: User, repo_full_name: str, pr_number: int) -> Dict[str, Any]:
+        """Get detailed file changes for a specific pull request"""
+        try:
+            g = Github(user.access_token)
+            repo = g.get_repo(repo_full_name)
+            pr = repo.get_pull(pr_number)
+            
+            files_changed = []
+            for file in pr.get_files():
+                file_data = {
+                    "filename": file.filename,
+                    "status": file.status,
+                    "additions": file.additions,
+                    "deletions": file.deletions,
+                    "changes": file.changes,
+                    "patch": file.patch if hasattr(file, 'patch') else None
+                }
+                files_changed.append(file_data)
+            
+            return {
+                "pr_number": pr.number,
+                "title": pr.title,
+                "description": pr.body,
+                "author": pr.user.login,
+                "base_branch": pr.base.ref,
+                "head_branch": pr.head.ref,
+                "state": pr.state,
+                "created_at": pr.created_at.isoformat() if pr.created_at else None,
+                "stats": {
+                    "total_files": pr.changed_files,
+                    "additions": pr.additions,
+                    "deletions": pr.deletions,
+                    "total_changes": pr.additions + pr.deletions
+                },
+                "files": files_changed
+            }
+            
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch PR files: {str(e)}")
+        
 # Create global instance
 github_service = GitHubService()
