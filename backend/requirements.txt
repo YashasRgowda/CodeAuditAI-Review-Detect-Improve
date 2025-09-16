@@ -3,9 +3,9 @@ fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.12
 
-# Database - Using asyncpg instead of psycopg2 for Python 3.13 compatibility
+# Database - Using pg8000 for Python 3.13 compatibility
 sqlalchemy==2.0.36
-asyncpg==0.29.0
+pg8000==1.31.2
 alembic==1.14.0
 
 # Redis
