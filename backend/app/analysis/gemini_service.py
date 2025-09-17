@@ -2,6 +2,10 @@ import google.generativeai as genai
 from fastapi import HTTPException
 from typing import Dict, Any, List
 from app.config import settings
+from app.analysis.ast_parser import ast_parser
+from app.analysis.dependency_analyzer import dependency_analyzer
+from app.analysis.security_scanner import security_scanner  
+from app.analysis.performance_analyzer import performance_analyzer
 
 class GeminiService:
     def __init__(self):
@@ -9,10 +13,34 @@ class GeminiService:
         self.model = genai.GenerativeModel('gemini-1.5-flash')
     
     async def analyze_code_changes(self, commit_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze code changes using Gemini AI"""
+        """Analyze code changes using Gemini AI with comprehensive analysis"""
         try:
-            # Create analysis prompt
-            prompt = self._create_analysis_prompt(commit_data)
+            # Perform comprehensive analysis
+            ast_analyses = []
+            files_for_analysis = []
+
+            for file in commit_data.get('files', []):
+                if file.get('patch'):
+                    filename = file['filename']
+                    patch_content = file['patch']
+                    
+                    # AST analysis with advanced metrics
+                    ast_analysis = ast_parser.calculate_advanced_metrics(patch_content, filename)
+                    ast_analyses.append(ast_analysis)
+                    
+                    files_for_analysis.append({'filename': filename, 'content': patch_content})
+
+            # Dependency analysis
+            dependency_analysis = dependency_analyzer.analyze_dependencies(files_for_analysis)
+
+            # Security analysis  
+            security_analysis = security_scanner.scan_multiple_files(files_for_analysis)
+
+            # Performance analysis
+            performance_analysis = performance_analyzer.analyze_performance(files_for_analysis)
+
+            # Create enhanced analysis prompt with ALL data
+            prompt = self._create_enhanced_analysis_prompt(commit_data, ast_analyses)
             
             # Generate analysis using Gemini
             response = self.model.generate_content(prompt)
@@ -22,6 +50,18 @@ class GeminiService:
             
             # Extract structured data from the analysis
             analysis_result = self._parse_analysis_response(analysis_text, commit_data)
+            
+            # Add ALL analyses to result
+            analysis_result['ast_analysis'] = {
+                'files_analyzed': len(ast_analyses),
+                'total_functions': sum(a.get('functions', 0) for a in ast_analyses),
+                'total_classes': sum(a.get('classes', 0) for a in ast_analyses),
+                'complexity_summary': ast_analyses,
+                'security_patterns_found': [pattern for a in ast_analyses for pattern in a.get('security_patterns', [])]
+            }
+            analysis_result['dependency_analysis'] = dependency_analysis
+            analysis_result['security_analysis'] = security_analysis  
+            analysis_result['performance_analysis'] = performance_analysis
             
             return analysis_result
             
@@ -84,6 +124,88 @@ CHANGE TYPE:
 
 Keep your analysis concise but thorough, focusing on practical insights for code review.
 """
+        return prompt
+    
+    def _create_enhanced_analysis_prompt(self, commit_data: Dict[str, Any], ast_analyses: List[Dict[str, Any]]) -> str:
+        """Create a detailed prompt for code change analysis with AST insights"""
+    
+        files_info = []
+        for i, file in enumerate(commit_data.get('files', [])):
+            file_summary = f"""
+    File: {file['filename']}
+    Status: {file['status']}
+    Changes: +{file['additions']} -{file['deletions']}
+    """
+            # Add AST analysis if available
+            if i < len(ast_analyses) and not ast_analyses[i].get('error'):
+                ast_data = ast_analyses[i]
+                file_summary += f"""
+    Code Structure Analysis:
+    - Language: {ast_data.get('language', 'unknown')}
+    - Functions: {ast_data.get('functions', 0)}
+    - Classes: {ast_data.get('classes', 0)}
+    - Complexity Score: {ast_data.get('complexity_score', 0)}
+    - Security Issues: {', '.join(ast_data.get('security_patterns', [])) or 'None detected'}
+    - Quality Issues: {', '.join(ast_data.get('code_quality_issues', [])) or 'None detected'}
+    """
+            
+            if file.get('patch'):
+                file_summary += f"Code diff:\n{file['patch'][:500]}...\n"
+            
+            files_info.append(file_summary)
+        
+        files_text = "\n".join(files_info)
+        
+        # Calculate overall complexity
+        total_complexity = sum(a.get('complexity_score', 0) for a in ast_analyses)
+        total_functions = sum(a.get('functions', 0) for a in ast_analyses)
+        
+        prompt = f"""
+    You are an expert code reviewer and software engineer with deep knowledge of code analysis. 
+    Please analyze the following code changes using both the diff information and the structural code analysis provided.
+
+    COMMIT INFORMATION:
+    - Commit SHA: {commit_data['sha']}
+    - Message: {commit_data['message']}
+    - Author: {commit_data['author']}
+    - Date: {commit_data['date']}
+    - Total Changes: {commit_data['stats']['total']} lines
+    - Additions: +{commit_data['stats']['additions']}
+    - Deletions: -{commit_data['stats']['deletions']}
+
+    CODE STRUCTURE ANALYSIS:
+    - Total Functions Modified/Added: {total_functions}
+    - Overall Complexity Score: {total_complexity}
+    - Languages Involved: {', '.join(set(a.get('language', 'unknown') for a in ast_analyses))}
+
+    FILES CHANGED WITH STRUCTURAL ANALYSIS:
+    {files_text}
+
+    Please provide your analysis in the following structured format, taking into account both the code changes and the structural analysis:
+
+    SUMMARY:
+    [2-3 sentence overview considering both changes and code structure]
+
+    RISK LEVEL: [LOW/MEDIUM/HIGH]
+    Consider complexity scores, security patterns, and scope of changes.
+
+    IMPACT AREAS:
+    [Main areas affected, considering code structure]
+
+    CODE QUALITY:
+    [Assessment including complexity analysis and quality issues found]
+
+    SECURITY CONSIDERATIONS:
+    [Security implications based on detected patterns and changes]
+
+    RECOMMENDATIONS:
+    [Specific suggestions based on structural analysis and changes]
+
+    CHANGE TYPE:
+    [bug_fix/feature/refactoring/documentation/configuration/other]
+
+    Focus on actionable insights that combine diff analysis with code structure understanding.
+    """
         return prompt
     
     def _parse_analysis_response(self, analysis_text: str, commit_data: Dict[str, Any]) -> Dict[str, Any]:

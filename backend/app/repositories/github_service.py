@@ -71,7 +71,7 @@ class GitHubService:
                 "default_branch": repo.default_branch,
                 "size": repo.size,
                 "archived": repo.archived,
-                "disabled": repo.disabled,
+                # Remove the disabled line - this attribute doesn't exist
                 "topics": repo.get_topics()
             }
             

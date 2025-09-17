@@ -131,6 +131,11 @@ async def create_analysis(
     if not repository:
         raise HTTPException(status_code=404, detail="Repository not found")
     
+    # Get the user who owns this repository
+    user = db.query(User).filter(User.id == repository.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Repository owner not found")
+    
     # Check if analysis already exists for this commit
     existing_analysis = db.query(Analysis).filter(
         Analysis.repository_id == analysis_data.repository_id,
@@ -140,21 +145,14 @@ async def create_analysis(
     if existing_analysis:
         return existing_analysis
     
-    # Create mock commit data (in real implementation, fetch from GitHub)
-    mock_commit_data = {
-        "sha": analysis_data.commit_hash,
-        "message": "Add new feature implementation",
-        "author": "YashasRgowda", 
-        "date": "2025-08-28T02:30:00Z",
-        "stats": {"total": 35, "additions": 25, "deletions": 10},
-        "files": [
-            {"filename": "src/main.py", "status": "modified", "additions": 20, "deletions": 5, "changes": 25},
-            {"filename": "tests/test_main.py", "status": "added", "additions": 15, "deletions": 0, "changes": 15}
-        ]
-    }
+    # Fetch REAL commit data from GitHub
+    try:
+        commit_diff = await github_service.get_commit_diff(user, repository.repo_name, analysis_data.commit_hash)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch commit: {str(e)}")
     
-    # Analyze with Gemini AI
-    analysis_result = await gemini_service.analyze_code_changes(mock_commit_data)
+    # Analyze with Gemini AI using REAL data
+    analysis_result = await gemini_service.analyze_code_changes(commit_diff)
     
     # Save to database
     analysis = Analysis(
