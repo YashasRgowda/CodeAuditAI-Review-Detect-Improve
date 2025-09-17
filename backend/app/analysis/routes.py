@@ -163,7 +163,12 @@ async def create_analysis(
         risk_level=analysis_result["risk_level"],
         files_changed=analysis_result["files_changed"],
         lines_added=analysis_result["lines_added"], 
-        lines_removed=analysis_result["lines_removed"]
+        lines_removed=analysis_result["lines_removed"],
+        maintainability_score=analysis_result.get("performance_analysis", {}).get("performance_score", 70),
+        security_score=100 - analysis_result.get("security_analysis", {}).get("overall_risk_score", 0),
+        performance_score=analysis_result.get("performance_analysis", {}).get("performance_score", 100),
+        dependency_complexity=len(analysis_result.get("dependency_analysis", {}).get("cross_file_connections", [])),
+        technical_debt_ratio=sum(a.get("technical_debt_ratio", 0) for a in analysis_result.get("ast_analysis", {}).get("complexity_summary", []))
     )
     
     db.add(analysis)
@@ -313,3 +318,24 @@ async def delete_analysis(analysis_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": "Analysis deleted successfully"}
+
+@router.get("/compare/{analysis_id1}/{analysis_id2}")
+async def compare_analyses(analysis_id1: int, analysis_id2: int, db: Session = Depends(get_db)):
+    """Compare two analyses"""
+    analysis1 = db.query(Analysis).filter(Analysis.id == analysis_id1).first()
+    analysis2 = db.query(Analysis).filter(Analysis.id == analysis_id2).first()
+    
+    if not analysis1 or not analysis2:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    
+    return {
+        "comparison": {
+            "maintainability_change": analysis2.maintainability_score - analysis1.maintainability_score,
+            "security_change": analysis2.security_score - analysis1.security_score,
+            "performance_change": analysis2.performance_score - analysis1.performance_score,
+            "complexity_change": analysis2.dependency_complexity - analysis1.dependency_complexity,
+            "improvement_trend": "positive" if analysis2.maintainability_score > analysis1.maintainability_score else "negative"
+        },
+        "analysis1": {"id": analysis1.id, "commit": analysis1.commit_hash, "created": analysis1.created_at},
+        "analysis2": {"id": analysis2.id, "commit": analysis2.commit_hash, "created": analysis2.created_at}
+    }

@@ -15,6 +15,11 @@ class Analysis(Base):
     files_changed = Column(Integer, default=0)
     lines_added = Column(Integer, default=0) 
     lines_removed = Column(Integer, default=0)
+    maintainability_score = Column(Integer, default=70)
+    security_score = Column(Integer, default=100)
+    performance_score = Column(Integer, default=100)
+    dependency_complexity = Column(Integer, default=0)
+    technical_debt_ratio = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationship to repository
