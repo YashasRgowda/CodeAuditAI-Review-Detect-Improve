@@ -2,9 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine
-from app.models import user, repository, analysis, pull_request
 from app.models import user, repository, analysis, pull_request, pr_analysis
-
+from app.webhooks.github_webhooks import router as webhook_router
+from app.middleware.rate_limiter import RateLimitMiddleware
 
 # Create database tables
 user.Base.metadata.create_all(bind=engine)
@@ -46,6 +46,8 @@ async def health_check():
         "redis": "connected"
     }
 
+app.add_middleware(RateLimitMiddleware, calls_per_hour=1000)
+
 # Import and include routers
 from app.auth.routes import router as auth_router
 from app.repositories.routes import router as repo_router
@@ -54,6 +56,8 @@ from app.analysis.routes import router as analysis_router
 app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(repo_router, prefix="/repos", tags=["repositories"])
 app.include_router(analysis_router, prefix="/analysis", tags=["analysis"])
+
+app.include_router(webhook_router, prefix="/webhooks", tags=["webhooks"])
 
 if __name__ == "__main__":
     import uvicorn

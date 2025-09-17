@@ -16,6 +16,11 @@ class AnalysisResponse(BaseModel):
     files_changed: int
     lines_added: int
     lines_removed: int
+    maintainability_score: int = 70
+    security_score: int = 100
+    performance_score: int = 100
+    dependency_complexity: int = 0
+    technical_debt_ratio: int = 0
     created_at: datetime
     
     class Config:
