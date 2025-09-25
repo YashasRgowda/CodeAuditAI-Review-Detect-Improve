@@ -66,15 +66,18 @@ async def github_callback(code: str, state: str = None, db: Session = Depends(ge
         # Create JWT token for our app
         app_token = create_access_token(data={"sub": str(db_user.id)})
         
-        return TokenResponse(
-            access_token=app_token,
-            token_type="bearer",
-            user=UserResponse.model_validate(db_user)
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(
+            url=f"http://localhost:3000/auth/callback?code={code}&state={state}",
+            status_code=302
         )
         
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
-
+        return RedirectResponse(
+            url="http://localhost:3000/auth?error=callback_failed",
+            status_code=302
+        )
+        
 @router.post("/github/callback")
 async def github_callback_post(
     callback_data: GitHubCallbackRequest, 
