@@ -10,7 +10,7 @@ from app.analysis.performance_analyzer import performance_analyzer
 class GeminiService:
     def __init__(self):
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
     
     async def analyze_code_changes(self, commit_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze code changes using Gemini AI with comprehensive analysis"""
