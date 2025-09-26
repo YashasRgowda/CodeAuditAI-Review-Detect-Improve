@@ -117,10 +117,27 @@ async def remove_repository(repo_id: int, db: Session = Depends(get_db)):
     if not repository:
         raise HTTPException(status_code=404, detail="Repository not found")
     
-    db.delete(repository)
-    db.commit()
-    
-    return {"message": "Repository removed successfully"}
+    try:
+        # Delete related analyses first
+        from app.models.analysis import Analysis
+        db.query(Analysis).filter(Analysis.repository_id == repo_id).delete()
+        
+        # Delete related PR analyses if they exist
+        try:
+            from app.models.pr_analysis import PRAnalysis
+            db.query(PRAnalysis).filter(PRAnalysis.repository_id == repo_id).delete()
+        except:
+            pass  # Table might not exist yet
+        
+        # Now delete the repository
+        db.delete(repository)
+        db.commit()
+        
+        return {"message": "Repository removed successfully"}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete repository: {str(e)}")
 
 @router.get("/{repo_id}/commits", response_model=List[CommitResponse])
 async def get_repository_commits(

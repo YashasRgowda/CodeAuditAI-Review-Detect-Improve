@@ -89,11 +89,11 @@ class ApiClient {
 
   // Analysis methods
   async quickAnalysis(data) {
-    return this.post('/analysis/quick', data);
+    return this.post('/analysis/quick', data);  // Already has slash
   }
 
   async fullAnalysis(data) {
-    return this.post('/analysis', data);
+  return this.post('/analysis/', data);  // ADD TRAILING SLASH HERE
   }
 
   async getAnalysisHistory(repoId = null) {

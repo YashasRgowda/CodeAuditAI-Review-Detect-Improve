@@ -152,30 +152,39 @@ async def create_analysis(
         raise HTTPException(status_code=400, detail=f"Failed to fetch commit: {str(e)}")
     
     # Analyze with Gemini AI using REAL data
-    analysis_result = await gemini_service.analyze_code_changes(commit_diff)
+    try:
+        analysis_result = await gemini_service.analyze_code_changes(commit_diff)
+    except Exception as e:
+        print(f"❌ GEMINI ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
     
     # Save to database
-    analysis = Analysis(
-        repository_id=analysis_data.repository_id,
-        commit_hash=analysis_data.commit_hash,
-        summary=analysis_result["summary"],
-        changes_data=analysis_result,
-        risk_level=analysis_result["risk_level"],
-        files_changed=analysis_result["files_changed"],
-        lines_added=analysis_result["lines_added"], 
-        lines_removed=analysis_result["lines_removed"],
-        maintainability_score=analysis_result.get("performance_analysis", {}).get("performance_score", 70),
-        security_score=100 - analysis_result.get("security_analysis", {}).get("overall_risk_score", 0),
-        performance_score=analysis_result.get("performance_analysis", {}).get("performance_score", 100),
-        dependency_complexity=len(analysis_result.get("dependency_analysis", {}).get("cross_file_connections", [])),
-        technical_debt_ratio=sum(a.get("technical_debt_ratio", 0) for a in analysis_result.get("ast_analysis", {}).get("complexity_summary", []))
-    )
-    
-    db.add(analysis)
-    db.commit()
-    db.refresh(analysis)
-    
-    return analysis
+    try:
+        analysis = Analysis(
+            repository_id=analysis_data.repository_id,
+            commit_hash=analysis_data.commit_hash,
+            summary=analysis_result.get("summary", "Analysis completed"),
+            changes_data=analysis_result,
+            risk_level=analysis_result.get("risk_level", "medium"),
+            files_changed=analysis_result.get("files_changed", 0),
+            lines_added=analysis_result.get("lines_added", 0), 
+            lines_removed=analysis_result.get("lines_removed", 0),
+            maintainability_score=analysis_result.get("performance_analysis", {}).get("performance_score", 70),
+            security_score=100 - analysis_result.get("security_analysis", {}).get("overall_risk_score", 0),
+            performance_score=analysis_result.get("performance_analysis", {}).get("performance_score", 100),
+            dependency_complexity=len(analysis_result.get("dependency_analysis", {}).get("cross_file_connections", [])),
+            technical_debt_ratio=sum(a.get("technical_debt_ratio", 0) for a in analysis_result.get("ast_analysis", {}).get("complexity_summary", []))
+        )
+        
+        db.add(analysis)
+        db.commit()
+        db.refresh(analysis)
+        
+        return analysis
+    except Exception as e:
+        db.rollback()
+        print(f"❌ DATABASE ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save analysis: {str(e)}")
 
 @router.get("/", response_model=List[AnalysisResponse])
 async def get_analyses(
