@@ -96,7 +96,16 @@ async def add_github_repository(
 @router.get("/", response_model=List[RepositoryResponse])
 async def get_user_repositories(db: Session = Depends(get_db)):
     """Get user's added repositories for analysis"""
-    repositories = db.query(Repository).all()
+    # Get the authenticated user
+    user = db.query(User).first()  # For now, getting first user
+    if not user:
+        return []  # Return empty array if no user
+    
+    # Filter repositories by user_id
+    repositories = db.query(Repository).filter(
+        Repository.user_id == user.id
+    ).order_by(Repository.created_at.desc()).all()
+    
     return repositories
 
 @router.get("/{repo_id}", response_model=RepositoryResponse)
