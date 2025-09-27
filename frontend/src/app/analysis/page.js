@@ -64,7 +64,7 @@ export default function AnalysisPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Analysis Dashboard</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Analysis_1 Dashboard</h1>
             <p className="text-white/50">View and manage all your code analyses</p>
           </div>
           <Link href="/analysis/quick" className="group relative inline-flex">
