@@ -1,4 +1,4 @@
-// File: src/app/repositories/[id]/commits/page.js - REFACTORED
+// File: src/app/repositories/[id]/commits/page.js - WITH LOADING STATE
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -18,6 +18,7 @@ export default function CommitsPage() {
   const [repository, setRepository] = useState(null);
   const [commits, setCommits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [analyzingCommit, setAnalyzingCommit] = useState(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -47,15 +48,21 @@ export default function CommitsPage() {
   };
 
   const handleAnalyze = async (commit) => {
+    setAnalyzingCommit(commit.sha);
+    
     try {
       await api.fullAnalysis({
         repository_id: parseInt(repoId),
         commit_hash: commit.sha
       });
-      alert('Analysis started! Check analysis history.');
+      
+      // Success notification
+      alert('Analysis completed! Check analysis history for results.');
     } catch (error) {
       console.error('Failed to start analysis:', error);
-      alert('Failed to start analysis');
+      alert('Failed to start analysis. Please try again.');
+    } finally {
+      setAnalyzingCommit(null);
     }
   };
 
@@ -106,6 +113,7 @@ export default function CommitsPage() {
                 key={commit.sha} 
                 commit={commit}
                 onAnalyze={handleAnalyze}
+                isAnalyzing={analyzingCommit === commit.sha}
               />
             ))}
           </div>
