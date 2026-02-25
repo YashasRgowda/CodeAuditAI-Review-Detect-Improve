@@ -12,8 +12,8 @@
 # Usage: python test_setup.py
 # ============================================================================
 
-import sys
 import os
+import sys
 
 # Add app directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
@@ -22,12 +22,12 @@ def test_imports():
     """Test all imports work"""
     try:
         from app.config import settings
-        from app.database import test_connection, engine, Base
-        from app.redis_client import test_redis_connection
-        from app.models.user import User
-        from app.models.repository import Repository  
+        from app.database import Base, engine, test_connection
         from app.models.analysis import Analysis
-        
+        from app.models.repository import Repository
+        from app.models.user import User
+        from app.redis_client import test_redis_connection
+
         print("✅ All imports successful!")
         return True
     except Exception as e:
@@ -38,7 +38,7 @@ def test_settings():
     """Test settings load"""
     try:
         from app.config import settings
-        print(f"✅ Settings loaded!")
+        print("✅ Settings loaded!")
         print(f"  - Database URL: {settings.DATABASE_URL[:50]}...")
         print(f"  - Redis URL: {settings.REDIS_URL}")
         print(f"  - Gemini API Key: {'***' + settings.GEMINI_API_KEY[-4:]}")
@@ -50,9 +50,9 @@ def test_settings():
 def create_database():
     """Create database tables"""
     try:
-        from app.database import engine, Base
-        from app.models import user, repository, analysis
-        
+        from app.database import Base, engine
+        from app.models import analysis, repository, user
+
         # Create all tables
         Base.metadata.create_all(bind=engine)
         print("✅ Database tables created!")
@@ -63,26 +63,26 @@ def create_database():
 
 if __name__ == "__main__":
     print("🚀 Testing AI Code Review Assistant Setup...\n")
-    
+
     success = True
-    
+
     # Test imports
     success &= test_imports()
-    
-    # Test settings  
+
+    # Test settings
     success &= test_settings()
-    
+
     # Test database connection
     from app.database import test_connection
     success &= test_connection()
-    
+
     # Test Redis connection
-    from app.redis_client import test_redis_connection  
+    from app.redis_client import test_redis_connection
     success &= test_redis_connection()
-    
+
     # Create database tables
     success &= create_database()
-    
+
     if success:
         print("\n🎉 Setup complete! Everything is working!")
     else:

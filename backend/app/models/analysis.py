@@ -8,14 +8,16 @@
 # Created when user triggers POST /analysis/ for a specific commit.
 # ============================================================================
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
-from sqlalchemy.sql import func
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.database import Base
+
 
 class Analysis(Base):
     __tablename__ = "analysis_results"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     repository_id = Column(Integer, ForeignKey("repositories.id"), nullable=False)
     commit_hash = Column(String, nullable=False)
@@ -23,7 +25,7 @@ class Analysis(Base):
     changes_data = Column(JSON, nullable=False)  # Detailed changes info
     risk_level = Column(String, nullable=False, default="low")  # low, medium, high
     files_changed = Column(Integer, default=0)
-    lines_added = Column(Integer, default=0) 
+    lines_added = Column(Integer, default=0)
     lines_removed = Column(Integer, default=0)
     maintainability_score = Column(Integer, default=70)
     security_score = Column(Integer, default=100)
@@ -31,13 +33,14 @@ class Analysis(Base):
     dependency_complexity = Column(Integer, default=0)
     technical_debt_ratio = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationship to repository
     repository = relationship("Repository", back_populates="analyses")
-    
+
     def __repr__(self):
         return f"<Analysis(id={self.id}, commit='{self.commit_hash[:8]}')>"
 
-# Add relationship to Repository model
-from app.models.repository import Repository
+# Add relationship to Repository model (must be after class definition to avoid circular imports)
+from app.models.repository import Repository  # noqa: E402
+
 Repository.analyses = relationship("Analysis", back_populates="repository")

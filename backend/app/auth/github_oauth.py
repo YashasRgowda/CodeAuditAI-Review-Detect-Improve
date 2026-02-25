@@ -14,7 +14,9 @@
 
 import httpx
 from fastapi import HTTPException
+
 from app.config import settings
+
 
 class GitHubOAuth:
     def __init__(self):
@@ -23,7 +25,7 @@ class GitHubOAuth:
         self.authorize_url = "https://github.com/login/oauth/authorize"
         self.token_url = "https://github.com/login/oauth/access_token"
         self.user_url = "https://api.github.com/user"
-    
+
     def get_authorization_url(self, state: str = None) -> str:
         """Generate GitHub OAuth authorization URL"""
         params = {
@@ -33,10 +35,10 @@ class GitHubOAuth:
         }
         if state:
             params["state"] = state
-        
+
         query_string = "&".join([f"{k}={v}" for k, v in params.items()])
         return f"{self.authorize_url}?{query_string}"
-    
+
     async def exchange_code_for_token(self, code: str) -> dict:
         """Exchange authorization code for access token"""
         async with httpx.AsyncClient() as client:
@@ -52,12 +54,12 @@ class GitHubOAuth:
                     "code": code
                 }
             )
-            
+
             if response.status_code != 200:
                 raise HTTPException(status_code=400, detail="Failed to exchange code for token")
-            
+
             return response.json()
-    
+
     async def get_user_info(self, access_token: str) -> dict:
         """Get user information from GitHub API"""
         async with httpx.AsyncClient() as client:
@@ -68,10 +70,10 @@ class GitHubOAuth:
                     "Accept": "application/json"
                 }
             )
-            
+
             if response.status_code != 200:
                 raise HTTPException(status_code=400, detail="Failed to get user info")
-            
+
             return response.json()
 
 # Create global instance

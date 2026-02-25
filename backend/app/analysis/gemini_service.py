@@ -6,432 +6,418 @@
 #   2. Runs static analysis tools (AST, security, dependency, performance)
 #   3. Builds a detailed prompt combining code + static analysis results
 #   4. Sends the prompt to Google Gemini 2.5 Flash AI
-#   5. Parses AI response into structured scores and recommendations
+#   5. Receives STRUCTURED JSON response (no fragile text parsing!)
+#
+# GenAI Features:
+#   - Structured Output: Gemini returns strict JSON via response_mime_type
+#   - Streaming: Real-time SSE streaming of analysis progress
+#   - Multi-tool Pipeline: AST + Security + Dependency + Performance + AI
 #
 # Key methods:
-#   - analyze_commit()   → Full AI analysis of a single commit
-#   - quick_analysis()   → Fast AI summary of code changes
-#   - analyze_pr()       → Full AI analysis of a pull request
-#
-# The AI returns: risk level, summary, maintainability/security/performance
-# scores, technical debt ratio, and detailed recommendations.
+#   - analyze_code_changes()     → Full AI commit analysis (JSON output)
+#   - analyze_pull_request()     → Full AI PR analysis (JSON output)
+#   - stream_analysis()          → Streaming commit analysis with SSE events
+#   - stream_pr_analysis()       → Streaming PR analysis with SSE events
 # ============================================================================
+
+import json
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import google.generativeai as genai
 from fastapi import HTTPException
-from typing import Dict, Any, List
-from app.config import settings
+from google.generativeai.types import GenerationConfig
+
 from app.analysis.ast_parser import ast_parser
 from app.analysis.dependency_analyzer import dependency_analyzer
-from app.analysis.security_scanner import security_scanner  
 from app.analysis.performance_analyzer import performance_analyzer
+from app.analysis.security_scanner import security_scanner
+from app.config import settings
+
+# ---- JSON Schema that Gemini MUST return for commit analysis ----
+COMMIT_ANALYSIS_SCHEMA = """{
+  "summary": "2-3 sentence overview of what this commit does",
+  "risk_level": "low | medium | high",
+  "change_type": "feature | bug_fix | refactoring | documentation | configuration | other",
+  "impact_areas": ["area1", "area2"],
+  "code_quality_assessment": "detailed assessment of code quality",
+  "security_concerns": ["concern1", "concern2"],
+  "recommendations": ["recommendation1", "recommendation2", "recommendation3"],
+  "maintainability_score": 85,
+  "security_score": 90,
+  "performance_score": 80,
+  "overall_score": 8
+}"""
+
+# ---- JSON Schema that Gemini MUST return for PR analysis ----
+PR_ANALYSIS_SCHEMA = """{
+  "summary": "2-3 sentence overview of what this PR accomplishes",
+  "risk_level": "low | medium | high",
+  "change_type": "feature | bug_fix | refactoring | documentation | security | performance | other",
+  "impact_areas": ["component1", "component2"],
+  "code_quality_assessment": "detailed assessment of code structure and patterns",
+  "security_concerns": ["concern1", "concern2"],
+  "performance_impact": "assessment of performance effects",
+  "recommendations": ["recommendation1", "recommendation2", "recommendation3"],
+  "maintainability_score": 85,
+  "security_score": 90,
+  "performance_score": 80,
+  "overall_score": 8
+}"""
+
 
 class GeminiService:
     def __init__(self):
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
-    
-    async def analyze_code_changes(self, commit_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze code changes using Gemini AI with comprehensive analysis"""
+
+        # Standard model — returns structured JSON
+        self.model = genai.GenerativeModel(
+            'gemini-2.5-flash',
+            generation_config=GenerationConfig(
+                response_mime_type="application/json",
+                temperature=0.3,  # Lower = more consistent/deterministic
+            )
+        )
+
+        # Streaming model — returns plain text for real-time streaming
+        self.stream_model = genai.GenerativeModel(
+            'gemini-2.5-flash',
+            generation_config=GenerationConfig(
+                temperature=0.3,
+            )
+        )
+
+    # ====================================================================
+    # STATIC ANALYSIS PIPELINE — Runs all local analyzers on code
+    # ====================================================================
+    def _run_static_analysis(self, commit_data: dict[str, Any]) -> dict[str, Any]:
+        """Run all static analysis tools on the code files"""
+        ast_analyses = []
+        files_for_analysis = []
+
+        for file in commit_data.get('files', []):
+            if file.get('patch'):
+                filename = file['filename']
+                patch_content = file['patch']
+
+                # AST analysis with advanced metrics
+                ast_analysis = ast_parser.calculate_advanced_metrics(patch_content, filename)
+                ast_analyses.append(ast_analysis)
+
+                files_for_analysis.append({'filename': filename, 'content': patch_content})
+
+        # Run all analyzers
+        dependency_analysis = dependency_analyzer.analyze_dependencies(files_for_analysis)
+        security_analysis = security_scanner.scan_multiple_files(files_for_analysis)
+        performance_analysis = performance_analyzer.analyze_performance(files_for_analysis)
+
+        return {
+            "ast_analyses": ast_analyses,
+            "dependency_analysis": dependency_analysis,
+            "security_analysis": security_analysis,
+            "performance_analysis": performance_analysis,
+        }
+
+    # ====================================================================
+    # COMMIT ANALYSIS — Full AI analysis with structured JSON output
+    # ====================================================================
+    async def analyze_code_changes(self, commit_data: dict[str, Any]) -> dict[str, Any]:
+        """Analyze code changes using Gemini AI — returns structured JSON"""
         try:
-            # Perform comprehensive analysis
-            ast_analyses = []
-            files_for_analysis = []
+            # Step 1: Run static analysis pipeline
+            static_results = self._run_static_analysis(commit_data)
 
-            for file in commit_data.get('files', []):
-                if file.get('patch'):
-                    filename = file['filename']
-                    patch_content = file['patch']
-                    
-                    # AST analysis with advanced metrics
-                    ast_analysis = ast_parser.calculate_advanced_metrics(patch_content, filename)
-                    ast_analyses.append(ast_analysis)
-                    
-                    files_for_analysis.append({'filename': filename, 'content': patch_content})
+            # Step 2: Build prompt with static analysis context
+            prompt = self._build_commit_prompt(commit_data, static_results)
 
-            # Dependency analysis
-            dependency_analysis = dependency_analyzer.analyze_dependencies(files_for_analysis)
-
-            # Security analysis  
-            security_analysis = security_scanner.scan_multiple_files(files_for_analysis)
-
-            # Performance analysis
-            performance_analysis = performance_analyzer.analyze_performance(files_for_analysis)
-
-            # Create enhanced analysis prompt with ALL data
-            prompt = self._create_enhanced_analysis_prompt(commit_data, ast_analyses)
-            
-            # Generate analysis using Gemini
+            # Step 3: Get structured JSON response from Gemini
             response = self.model.generate_content(prompt)
-            
-            # Parse the response
-            analysis_text = response.text
-            
-            # Extract structured data from the analysis
-            analysis_result = self._parse_analysis_response(analysis_text, commit_data)
-            
-            # Add ALL analyses to result
-            analysis_result['ast_analysis'] = {
-                'files_analyzed': len(ast_analyses),
-                'total_functions': sum(a.get('functions', 0) for a in ast_analyses),
-                'total_classes': sum(a.get('classes', 0) for a in ast_analyses),
-                'complexity_summary': ast_analyses,
-                'security_patterns_found': [pattern for a in ast_analyses for pattern in a.get('security_patterns', [])]
-            }
-            analysis_result['dependency_analysis'] = dependency_analysis
-            analysis_result['security_analysis'] = security_analysis  
-            analysis_result['performance_analysis'] = performance_analysis
-            
-            return analysis_result
-            
+            ai_result = json.loads(response.text)
+
+            # Step 4: Merge AI results with static analysis data + commit metadata
+            return self._build_commit_result(ai_result, commit_data, static_results)
+
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=500, detail=f"AI returned invalid JSON: {str(e)}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
-    
-    def _create_analysis_prompt(self, commit_data: Dict[str, Any]) -> str:
-        """Create a detailed prompt for code change analysis"""
-        
-        files_info = []
+
+    # ====================================================================
+    # PR ANALYSIS — Full AI analysis with structured JSON output
+    # ====================================================================
+    async def analyze_pull_request(self, pr_data: dict[str, Any]) -> dict[str, Any]:
+        """Analyze pull request changes using Gemini AI — returns structured JSON"""
+        try:
+            # Build PR prompt
+            prompt = self._build_pr_prompt(pr_data)
+
+            # Get structured JSON response from Gemini
+            response = self.model.generate_content(prompt)
+            ai_result = json.loads(response.text)
+
+            # Build final result with PR metadata
+            return self._build_pr_result(ai_result, pr_data)
+
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=500, detail=f"AI returned invalid JSON: {str(e)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"PR AI analysis failed: {str(e)}")
+
+    # ====================================================================
+    # STREAMING COMMIT ANALYSIS — Real-time SSE events
+    # ====================================================================
+    async def stream_analysis(self, commit_data: dict[str, Any]) -> AsyncGenerator[dict[str, Any]]:
+        """Stream analysis progress as SSE events — yields dict events"""
+
+        # Event 1: Starting
+        yield {"event": "progress", "data": {"step": "fetch", "message": "Fetching code changes...", "progress": 10}}
+
+        # Event 2: AST analysis
+        yield {"event": "progress", "data": {"step": "ast", "message": "Parsing code structure (AST analysis)...", "progress": 25}}
+        ast_analyses = []
+        files_for_analysis = []
         for file in commit_data.get('files', []):
-            file_summary = f"""
-File: {file['filename']}
-Status: {file['status']}
-Changes: +{file['additions']} -{file['deletions']}
-"""
             if file.get('patch'):
-                file_summary += f"Code diff:\n{file['patch'][:500]}...\n"
-            
-            files_info.append(file_summary)
-        
-        files_text = "\n".join(files_info)
-        
-        prompt = f"""
-You are an expert code reviewer and software engineer. Please analyze the following code changes and provide a comprehensive review.
+                filename = file['filename']
+                patch_content = file['patch']
+                ast_analysis = ast_parser.calculate_advanced_metrics(patch_content, filename)
+                ast_analyses.append(ast_analysis)
+                files_for_analysis.append({'filename': filename, 'content': patch_content})
 
-COMMIT INFORMATION:
-- Commit SHA: {commit_data['sha']}
-- Message: {commit_data['message']}
-- Author: {commit_data['author']}
-- Date: {commit_data['date']}
-- Total Changes: {commit_data['stats']['total']} lines
-- Additions: +{commit_data['stats']['additions']}
-- Deletions: -{commit_data['stats']['deletions']}
+        # Event 3: Security scan
+        yield {"event": "progress", "data": {"step": "security", "message": "Running security vulnerability scan...", "progress": 40}}
+        security_analysis = security_scanner.scan_multiple_files(files_for_analysis)
 
-FILES CHANGED:
-{files_text}
+        # Event 4: Dependency analysis
+        yield {"event": "progress", "data": {"step": "dependency", "message": "Analyzing cross-file dependencies...", "progress": 55}}
+        dependency_analysis = dependency_analyzer.analyze_dependencies(files_for_analysis)
 
-Please provide your analysis in the following structured format:
+        # Event 5: Performance analysis
+        yield {"event": "progress", "data": {"step": "performance", "message": "Detecting performance anti-patterns...", "progress": 65}}
+        performance_analysis = performance_analyzer.analyze_performance(files_for_analysis)
 
-SUMMARY:
-[2-3 sentence overview of what this commit does]
+        static_results = {
+            "ast_analyses": ast_analyses,
+            "dependency_analysis": dependency_analysis,
+            "security_analysis": security_analysis,
+            "performance_analysis": performance_analysis,
+        }
 
-RISK LEVEL: [LOW/MEDIUM/HIGH]
+        # Event 6: AI analysis (the big one)
+        yield {"event": "progress", "data": {"step": "ai", "message": "Gemini AI is analyzing your code...", "progress": 75}}
 
-IMPACT AREAS:
-[List the main areas of the codebase affected]
+        try:
+            prompt = self._build_commit_prompt(commit_data, static_results)
+            response = self.model.generate_content(prompt)
+            ai_result = json.loads(response.text)
 
-CODE QUALITY:
-[Assessment of code quality, potential issues, best practices]
+            # Event 7: Building result
+            yield {"event": "progress", "data": {"step": "building", "message": "Building analysis report...", "progress": 90}}
 
-SECURITY CONSIDERATIONS:
-[Any security implications or concerns]
+            final_result = self._build_commit_result(ai_result, commit_data, static_results)
 
-RECOMMENDATIONS:
-[Specific suggestions for improvement or areas to watch]
+            # Event 8: Complete — send final result
+            yield {"event": "complete", "data": {"result": final_result, "progress": 100, "message": "Analysis complete!"}}
 
-CHANGE TYPE:
-[bug_fix/feature/refactoring/documentation/configuration/other]
+        except Exception as e:
+            yield {"event": "error", "data": {"message": f"AI analysis failed: {str(e)}", "progress": 0}}
 
-Keep your analysis concise but thorough, focusing on practical insights for code review.
-"""
-        return prompt
-    
-    def _create_enhanced_analysis_prompt(self, commit_data: Dict[str, Any], ast_analyses: List[Dict[str, Any]]) -> str:
-        """Create a detailed prompt for code change analysis with AST insights"""
-    
+    # ====================================================================
+    # STREAMING PR ANALYSIS — Real-time SSE events
+    # ====================================================================
+    async def stream_pr_analysis(self, pr_data: dict[str, Any]) -> AsyncGenerator[dict[str, Any]]:
+        """Stream PR analysis progress as SSE events"""
+
+        yield {"event": "progress", "data": {"step": "fetch", "message": "Fetching PR changes...", "progress": 15}}
+        yield {"event": "progress", "data": {"step": "ai", "message": "Gemini AI is reviewing your pull request...", "progress": 50}}
+
+        try:
+            prompt = self._build_pr_prompt(pr_data)
+            response = self.model.generate_content(prompt)
+            ai_result = json.loads(response.text)
+
+            yield {"event": "progress", "data": {"step": "building", "message": "Building PR review report...", "progress": 85}}
+
+            final_result = self._build_pr_result(ai_result, pr_data)
+
+            yield {"event": "complete", "data": {"result": final_result, "progress": 100, "message": "PR analysis complete!"}}
+
+        except Exception as e:
+            yield {"event": "error", "data": {"message": f"PR analysis failed: {str(e)}", "progress": 0}}
+
+    # ====================================================================
+    # PROMPT BUILDERS
+    # ====================================================================
+    def _build_commit_prompt(self, commit_data: dict[str, Any], static_results: dict[str, Any]) -> str:
+        """Build prompt for commit analysis with static analysis context"""
+        ast_analyses = static_results["ast_analyses"]
+
+        # Build file summaries with AST insights
         files_info = []
         for i, file in enumerate(commit_data.get('files', [])):
-            file_summary = f"""
-    File: {file['filename']}
-    Status: {file['status']}
-    Changes: +{file['additions']} -{file['deletions']}
-    """
-            # Add AST analysis if available
+            file_summary = f"File: {file['filename']} | Status: {file['status']} | +{file['additions']} -{file['deletions']}"
+
             if i < len(ast_analyses) and not ast_analyses[i].get('error'):
-                ast_data = ast_analyses[i]
-                file_summary += f"""
-    Code Structure Analysis:
-    - Language: {ast_data.get('language', 'unknown')}
-    - Functions: {ast_data.get('functions', 0)}
-    - Classes: {ast_data.get('classes', 0)}
-    - Complexity Score: {ast_data.get('complexity_score', 0)}
-    - Security Issues: {', '.join(ast_data.get('security_patterns', [])) or 'None detected'}
-    - Quality Issues: {', '.join(ast_data.get('code_quality_issues', [])) or 'None detected'}
-    """
-            
+                ast = ast_analyses[i]
+                file_summary += f"\n  Structure: {ast.get('functions', 0)} functions, {ast.get('classes', 0)} classes, complexity={ast.get('complexity_score', 0)}"
+                if ast.get('security_patterns'):
+                    file_summary += f"\n  Security flags: {', '.join(ast['security_patterns'])}"
+                if ast.get('code_quality_issues'):
+                    file_summary += f"\n  Quality issues: {', '.join(ast['code_quality_issues'])}"
+
             if file.get('patch'):
-                file_summary += f"Code diff:\n{file['patch'][:500]}...\n"
-            
+                file_summary += f"\n  Diff:\n{file['patch'][:800]}"
+
             files_info.append(file_summary)
-        
-        files_text = "\n".join(files_info)
-        
-        # Calculate overall complexity
-        total_complexity = sum(a.get('complexity_score', 0) for a in ast_analyses)
-        total_functions = sum(a.get('functions', 0) for a in ast_analyses)
-        
-        prompt = f"""
-    You are an expert code reviewer and software engineer with deep knowledge of code analysis. 
-    Please analyze the following code changes using both the diff information and the structural code analysis provided.
 
-    COMMIT INFORMATION:
-    - Commit SHA: {commit_data['sha']}
-    - Message: {commit_data['message']}
-    - Author: {commit_data['author']}
-    - Date: {commit_data['date']}
-    - Total Changes: {commit_data['stats']['total']} lines
-    - Additions: +{commit_data['stats']['additions']}
-    - Deletions: -{commit_data['stats']['deletions']}
+        # Security summary
+        sec = static_results["security_analysis"]
+        sec_summary = f"Security scan: {sec.get('total_findings', 0)} findings, risk score {sec.get('overall_risk_score', 0)}/100"
 
-    CODE STRUCTURE ANALYSIS:
-    - Total Functions Modified/Added: {total_functions}
-    - Overall Complexity Score: {total_complexity}
-    - Languages Involved: {', '.join(set(a.get('language', 'unknown') for a in ast_analyses))}
+        # Performance summary
+        perf = static_results["performance_analysis"]
+        perf_summary = f"Performance scan: {perf.get('total_issues', 0)} issues, score {perf.get('performance_score', 100)}/100"
 
-    FILES CHANGED WITH STRUCTURAL ANALYSIS:
-    {files_text}
+        # Dependency summary
+        dep = static_results["dependency_analysis"]
+        dep_summary = f"Dependencies: complexity {dep.get('complexity_score', 0)}/100, {len(dep.get('dependency_risks', []))} risks"
 
-    Please provide your analysis in the following structured format, taking into account both the code changes and the structural analysis:
+        return f"""You are an expert code reviewer. Analyze these code changes and return a JSON response.
 
-    SUMMARY:
-    [2-3 sentence overview considering both changes and code structure]
+COMMIT: {commit_data['sha'][:12]} by {commit_data['author']}
+MESSAGE: {commit_data['message']}
+STATS: {commit_data['stats']['total']} changes (+{commit_data['stats']['additions']} -{commit_data['stats']['deletions']})
 
-    RISK LEVEL: [LOW/MEDIUM/HIGH]
-    Consider complexity scores, security patterns, and scope of changes.
+STATIC ANALYSIS RESULTS:
+{sec_summary}
+{perf_summary}
+{dep_summary}
 
-    IMPACT AREAS:
-    [Main areas affected, considering code structure]
+FILES CHANGED:
+{chr(10).join(files_info)}
 
-    CODE QUALITY:
-    [Assessment including complexity analysis and quality issues found]
+Return your analysis as JSON matching this EXACT schema:
+{COMMIT_ANALYSIS_SCHEMA}
 
-    SECURITY CONSIDERATIONS:
-    [Security implications based on detected patterns and changes]
+SCORING RULES:
+- maintainability_score: 0-100 (100=excellent, consider complexity, readability, modularity)
+- security_score: 0-100 (100=no issues, deduct for each security concern found)
+- performance_score: 0-100 (100=optimal, deduct for anti-patterns)
+- overall_score: 1-10 (holistic quality rating)
+- risk_level: "low" for safe changes, "medium" for moderate risk, "high" for dangerous changes
+- recommendations: provide 3-5 specific, actionable suggestions
 
-    RECOMMENDATIONS:
-    [Specific suggestions based on structural analysis and changes]
+Be thorough, technical, and precise. Return ONLY valid JSON."""
 
-    CHANGE TYPE:
-    [bug_fix/feature/refactoring/documentation/configuration/other]
+    def _build_pr_prompt(self, pr_data: dict[str, Any]) -> str:
+        """Build prompt for PR analysis"""
 
-    Focus on actionable insights that combine diff analysis with code structure understanding.
-    """
-        return prompt
-    
-    def _parse_analysis_response(self, analysis_text: str, commit_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse AI response into structured data"""
-        
-        # Extract risk level
-        risk_level = "medium"  # default
-        if "RISK LEVEL: LOW" in analysis_text.upper():
-            risk_level = "low"
-        elif "RISK LEVEL: HIGH" in analysis_text.upper():
-            risk_level = "high"
-        
-        # Extract change type
-        change_type = "other"  # default
-        change_types = ["bug_fix", "feature", "refactoring", "documentation", "configuration"]
-        for ct in change_types:
-            if ct.replace("_", " ").upper() in analysis_text.upper():
-                change_type = ct
-                break
-        
-        # Extract summary (first few sentences)
-        lines = analysis_text.split('\n')
-        summary_lines = []
-        in_summary = False
-        
-        for line in lines:
-            if "SUMMARY:" in line.upper():
-                in_summary = True
-                if line.strip() != "SUMMARY:":
-                    summary_lines.append(line.split(":", 1)[1].strip())
-            elif in_summary and line.strip():
-                if any(keyword in line.upper() for keyword in ["RISK LEVEL:", "IMPACT AREAS:", "CODE QUALITY:"]):
-                    break
-                summary_lines.append(line.strip())
-        
-        summary = " ".join(summary_lines) if summary_lines else "Code changes analyzed"
-        
+        files_info = []
+        for file in pr_data.get('files', [])[:20]:
+            file_summary = f"File: {file['filename']} | Status: {file['status']} | +{file['additions']} -{file['deletions']}"
+            if file.get('patch') and len(file['patch']) < 1000:
+                file_summary += f"\n  Diff:\n{file['patch'][:600]}"
+            files_info.append(file_summary)
+
+        return f"""You are a senior software architect reviewing a pull request. Return a JSON response.
+
+PR #{pr_data['pr_number']}: {pr_data['title']}
+Author: {pr_data['author']}
+Branches: {pr_data['head_branch']} → {pr_data['base_branch']}
+Stats: {pr_data['stats']['total_files']} files, +{pr_data['stats']['additions']} -{pr_data['stats']['deletions']}
+
+Description:
+{pr_data.get('description', 'No description')[:500]}
+
+FILES CHANGED:
+{chr(10).join(files_info)}
+
+Return your analysis as JSON matching this EXACT schema:
+{PR_ANALYSIS_SCHEMA}
+
+SCORING RULES:
+- maintainability_score: 0-100 (100=excellent)
+- security_score: 0-100 (100=no issues)
+- performance_score: 0-100 (100=optimal)
+- overall_score: 1-10 (holistic quality rating)
+- risk_level: "low" | "medium" | "high"
+- recommendations: provide 3-5 specific, actionable suggestions
+- security_concerns: list actual security issues found (empty list if none)
+- impact_areas: list the main system components affected
+
+Be thorough, technical, and precise. Return ONLY valid JSON."""
+
+    # ====================================================================
+    # RESULT BUILDERS — Merge AI output with metadata
+    # ====================================================================
+    def _build_commit_result(self, ai_result: dict[str, Any], commit_data: dict[str, Any], static_results: dict[str, Any]) -> dict[str, Any]:
+        """Merge AI structured output with commit metadata and static analysis"""
+        ast_analyses = static_results["ast_analyses"]
+
         return {
-            "summary": summary,
-            "full_analysis": analysis_text,
-            "risk_level": risk_level,
-            "change_type": change_type,
+            # AI-generated fields (structured JSON — no more text parsing!)
+            "summary": ai_result.get("summary", "Analysis completed"),
+            "full_analysis": json.dumps(ai_result, indent=2),
+            "risk_level": ai_result.get("risk_level", "medium"),
+            "change_type": ai_result.get("change_type", "other"),
+            "recommendations": ai_result.get("recommendations", []),
+            "code_quality_assessment": ai_result.get("code_quality_assessment", ""),
+            "security_concerns": ai_result.get("security_concerns", []),
+            "impact_areas": ai_result.get("impact_areas", []),
+            "maintainability_score": ai_result.get("maintainability_score", 70),
+            "security_score": ai_result.get("security_score", 100),
+            "performance_score": ai_result.get("performance_score", 100),
+            "overall_score": ai_result.get("overall_score", 7),
+
+            # Commit metadata
             "files_changed": len(commit_data.get('files', [])),
             "lines_added": commit_data['stats']['additions'],
             "lines_removed": commit_data['stats']['deletions'],
             "commit_hash": commit_data['sha'],
             "commit_message": commit_data['message'],
             "author": commit_data['author'],
-            "analysis_date": commit_data['date']
+            "analysis_date": commit_data['date'],
+
+            # Static analysis data (from our local analyzers)
+            "ast_analysis": {
+                "files_analyzed": len(ast_analyses),
+                "total_functions": sum(a.get('functions', 0) for a in ast_analyses),
+                "total_classes": sum(a.get('classes', 0) for a in ast_analyses),
+                "complexity_summary": ast_analyses,
+                "security_patterns_found": [p for a in ast_analyses for p in a.get('security_patterns', [])]
+            },
+            "dependency_analysis": static_results["dependency_analysis"],
+            "security_analysis": static_results["security_analysis"],
+            "performance_analysis": static_results["performance_analysis"],
         }
 
-    async def analyze_pull_request(self, pr_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze pull request changes using Gemini AI"""
-        try:
-            # Create PR analysis prompt
-            prompt = self._create_pr_analysis_prompt(pr_data)
-            
-            # Generate analysis using Gemini
-            response = self.model.generate_content(prompt)
-            
-            # Parse the response
-            analysis_text = response.text
-            
-            # Extract structured data from the analysis
-            analysis_result = self._parse_pr_analysis_response(analysis_text, pr_data)
-            
-            return analysis_result
-            
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"PR AI analysis failed: {str(e)}")
-    
-    def _create_pr_analysis_prompt(self, pr_data: Dict[str, Any]) -> str:
-        """Create a detailed prompt for PR analysis"""
-        
-        files_info = []
-        for file in pr_data.get('files', [])[:20]:  # Limit to first 20 files
-            file_summary = f"""
-File: {file['filename']}
-Status: {file['status']}
-Changes: +{file['additions']} -{file['deletions']}
-"""
-            if file.get('patch') and len(file['patch']) < 1000:
-                file_summary += f"Code diff:\n{file['patch'][:500]}...\n"
-            
-            files_info.append(file_summary)
-        
-        files_text = "\n".join(files_info)
-        
-        prompt = f"""
-You are a senior software architect and security expert reviewing a pull request. Provide a comprehensive technical review.
-
-PULL REQUEST INFORMATION:
-- PR #{pr_data['pr_number']}: {pr_data['title']}
-- Author: {pr_data['author']}
-- Branches: {pr_data['head_branch']} → {pr_data['base_branch']}
-- Files Changed: {pr_data['stats']['total_files']}
-- Total Changes: {pr_data['stats']['total_changes']} lines
-- Additions: +{pr_data['stats']['additions']}
-- Deletions: -{pr_data['stats']['deletions']}
-
-DESCRIPTION:
-{pr_data.get('description', 'No description provided')[:500]}
-
-FILES CHANGED:
-{files_text}
-
-Provide analysis in this EXACT format:
-
-SUMMARY:
-[2-3 sentence overview of what this PR accomplishes]
-
-RISK LEVEL: [LOW/MEDIUM/HIGH]
-
-CHANGE TYPE: [feature/bug_fix/refactoring/documentation/security/performance/other]
-
-IMPACT AREAS:
-[List main system components affected]
-
-SECURITY ANALYSIS:
-[Security implications, vulnerabilities, or improvements]
-
-CODE QUALITY:
-[Assessment of code structure, patterns, and maintainability]
-
-PERFORMANCE IMPACT:
-[Potential performance effects]
-
-RECOMMENDATIONS:
-[Specific actionable suggestions for improvement]
-
-OVERALL SCORE: [1-10 where 10 is excellent]
-
-Focus on technical depth, security implications, and actionable insights for the development team.
-"""
-        return prompt
-    
-    def _parse_pr_analysis_response(self, analysis_text: str, pr_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse AI response into structured PR analysis data"""
-        
-        # Extract risk level
-        risk_level = "medium"
-        if "RISK LEVEL: LOW" in analysis_text.upper():
-            risk_level = "low"
-        elif "RISK LEVEL: HIGH" in analysis_text.upper():
-            risk_level = "high"
-        
-        # Extract change type
-        change_type = "other"
-        change_types = ["feature", "bug_fix", "refactoring", "documentation", "security", "performance"]
-        for ct in change_types:
-            if f"CHANGE TYPE: {ct.upper()}" in analysis_text.upper():
-                change_type = ct
-                break
-        
-        # Extract overall score
-        overall_score = 7  # default
-        import re
-        score_match = re.search(r'OVERALL SCORE:\s*(\d+)', analysis_text.upper())
-        if score_match:
-            overall_score = min(10, max(1, int(score_match.group(1))))
-        
-        # Extract summary
-        lines = analysis_text.split('\n')
-        summary_lines = []
-        in_summary = False
-        
-        for line in lines:
-            if "SUMMARY:" in line.upper():
-                in_summary = True
-                if line.strip() != "SUMMARY:":
-                    summary_lines.append(line.split(":", 1)[1].strip())
-            elif in_summary and line.strip():
-                if any(keyword in line.upper() for keyword in ["RISK LEVEL:", "CHANGE TYPE:", "IMPACT AREAS:"]):
-                    break
-                summary_lines.append(line.strip())
-        
-        summary = " ".join(summary_lines) if summary_lines else f"Analysis of PR #{pr_data['pr_number']}: {pr_data['title']}"
-        
-        # Extract recommendations
-        recommendations = []
-        in_recommendations = False
-        for line in lines:
-            if "RECOMMENDATIONS:" in line.upper():
-                in_recommendations = True
-                continue
-            elif in_recommendations and line.strip():
-                if "OVERALL SCORE:" in line.upper():
-                    break
-                if line.strip().startswith("-") or line.strip().startswith("•"):
-                    recommendations.append(line.strip()[1:].strip())
-                elif line.strip():
-                    recommendations.append(line.strip())
-        
+    def _build_pr_result(self, ai_result: dict[str, Any], pr_data: dict[str, Any]) -> dict[str, Any]:
+        """Merge AI structured output with PR metadata"""
         return {
-            "summary": summary,
-            "full_analysis": analysis_text,
-            "risk_level": risk_level,
-            "change_type": change_type,
+            # AI-generated fields (structured JSON)
+            "summary": ai_result.get("summary", f"Analysis of PR #{pr_data['pr_number']}"),
+            "full_analysis": json.dumps(ai_result, indent=2),
+            "risk_level": ai_result.get("risk_level", "medium"),
+            "change_type": ai_result.get("change_type", "other"),
+            "recommendations": ai_result.get("recommendations", [])[:5],
+            "code_quality_assessment": ai_result.get("code_quality_assessment", ""),
+            "security_concerns": ai_result.get("security_concerns", []),
+            "impact_areas": ai_result.get("impact_areas", []),
+            "performance_impact": ai_result.get("performance_impact", ""),
+            "maintainability_score": ai_result.get("maintainability_score", 70),
+            "security_score": ai_result.get("security_score", 100),
+            "performance_score": ai_result.get("performance_score", 100),
+            "overall_score": ai_result.get("overall_score", 7),
+
+            # PR metadata
             "files_changed": pr_data['stats']['total_files'],
             "lines_added": pr_data['stats']['additions'],
             "lines_removed": pr_data['stats']['deletions'],
-            "overall_score": overall_score,
-            "recommendations": recommendations[:5],  # Limit to top 5
             "pr_number": pr_data['pr_number'],
             "pr_title": pr_data['title'],
-            "author": pr_data['author']
+            "author": pr_data['author'],
         }
-    
-# Create global instance  
+
+
+# Create global instance
 gemini_service = GeminiService()

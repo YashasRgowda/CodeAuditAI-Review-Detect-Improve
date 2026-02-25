@@ -7,9 +7,11 @@
 #     lines added/removed, list of commits, and the complete code diff
 # ============================================================================
 
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Any, Optional
+
+from pydantic import BaseModel
+
 
 class PullRequestResponse(BaseModel):
     id: int
@@ -29,7 +31,7 @@ class PullRequestResponse(BaseModel):
     last_analyzed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -58,5 +60,5 @@ class PullRequestFilesResponse(BaseModel):
     head_branch: str
     state: str
     created_at: Optional[str] = None
-    stats: Dict[str, Any]
-    files: List[Dict[str, Any]]
+    stats: dict[str, Any]
+    files: list[dict[str, Any]]

@@ -1,0 +1,51 @@
+# ============================================================================
+# PYPROJECT.TOML — Python Project Configuration
+# ============================================================================
+# Configures ruff (fast Python linter) with rules tuned for this project.
+# Ruff replaces flake8, isort, and pyupgrade — runs 10-100x faster.
+#
+# Rules enabled:
+#   E  = PEP 8 style errors (basic formatting)
+#   W  = PEP 8 warnings
+#   F  = Pyflakes (unused imports, undefined names)
+#   I  = isort (import ordering)
+#   UP = pyupgrade (modern Python syntax)
+#   B  = flake8-bugbear (common bugs)
+#   S  = bandit security checks (optional, for awareness)
+# ============================================================================
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+# Enable useful rule sets
+select = [
+    "E",    # PEP 8 style errors
+    "W",    # PEP 8 warnings
+    "F",    # Pyflakes (unused imports, undefined vars)
+    "I",    # isort (import sorting)
+    "UP",   # pyupgrade (use modern Python syntax)
+    "B",    # flake8-bugbear (common bug patterns)
+]
+
+# Ignore rules that are too noisy for this project
+ignore = [
+    "E501",   # Line too long — we use 120 char limit, but don't block on it
+    "B008",   # Do not perform function calls in argument defaults (FastAPI Depends uses this)
+    "B904",   # Within an except clause, raise with `from` — too strict for now
+    "UP007",  # Use X | Y for union types — requires Python 3.10+ syntax everywhere
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files can have unused imports and assertions
+"test_*.py" = ["F401", "S101"]
+"**/tests/**" = ["F401", "S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"

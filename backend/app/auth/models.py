@@ -8,9 +8,11 @@
 #   - GitHubCallbackRequest: The code & state sent from GitHub after OAuth
 # ============================================================================
 
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel
+
 
 class UserCreate(BaseModel):
     github_id: str
@@ -26,7 +28,7 @@ class UserResponse(BaseModel):
     email: Optional[str] = None
     avatar_url: Optional[str] = None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 

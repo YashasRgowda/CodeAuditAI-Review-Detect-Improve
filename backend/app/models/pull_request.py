@@ -7,14 +7,16 @@
 # Relationships: belongs to Repository, has many PRAnalyses.
 # ============================================================================
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
-from sqlalchemy.sql import func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.database import Base
+
 
 class PullRequest(Base):
     __tablename__ = "pull_requests"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     repository_id = Column(Integer, ForeignKey("repositories.id"), nullable=False)
     pr_number = Column(Integer, nullable=False)  # GitHub PR number like #123
@@ -32,12 +34,12 @@ class PullRequest(Base):
     last_analyzed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationship to repository
     repository = relationship("Repository", back_populates="pull_requests")
-    
+
     def __repr__(self):
         return f"<PullRequest(id={self.id}, pr_number=#{self.pr_number}, title='{self.title}')>"
-    
+
     # Add relationship to PRAnalysis model
 PullRequest.pr_analysis = relationship("PRAnalysis", back_populates="pull_request")

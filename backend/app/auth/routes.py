@@ -10,14 +10,15 @@
 #   - POST /auth/logout          → Logout (client deletes token)
 # ============================================================================
 
-from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.responses import RedirectResponse
+import secrets
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
+from app.auth.github_oauth import github_oauth
+from app.auth.models import GitHubCallbackRequest
 from app.database import get_db
 from app.models.user import User
-from app.auth.github_oauth import github_oauth
-from app.auth.models import TokenResponse, UserResponse, GitHubCallbackRequest
-import secrets
 
 router = APIRouter()
 
@@ -26,10 +27,10 @@ async def github_login():
     """Initiate GitHub OAuth login"""
     # Generate a random state for security
     state = secrets.token_urlsafe(32)
-    
+
     # Get GitHub authorization URL
     auth_url = github_oauth.get_authorization_url(state=state)
-    
+
     return {
         "auth_url": auth_url,
         "message": "Visit the auth_url to login with GitHub"
@@ -41,20 +42,20 @@ async def github_callback(code: str, state: str = None, db: Session = Depends(ge
     try:
         # Import here to avoid circular import
         from app.utils.security import create_access_token
-        
+
         # Exchange code for access token
         token_data = await github_oauth.exchange_code_for_token(code)
         access_token = token_data.get("access_token")
-        
+
         if not access_token:
             raise HTTPException(status_code=400, detail="No access token received")
-        
+
         # Get user info from GitHub
         github_user = await github_oauth.get_user_info(access_token)
-        
+
         # Check if user already exists
         db_user = db.query(User).filter(User.github_id == str(github_user["id"])).first()
-        
+
         if not db_user:
             # Create new user
             db_user = User(
@@ -74,31 +75,31 @@ async def github_callback(code: str, state: str = None, db: Session = Depends(ge
             db_user.email = github_user.get("email")
             db_user.avatar_url = github_user.get("avatar_url")
             db.commit()
-        
+
         # Create JWT token for our app
-        app_token = create_access_token(data={"sub": str(db_user.id)})
-        
+        create_access_token(data={"sub": str(db_user.id)})
+
         from fastapi.responses import RedirectResponse
         return RedirectResponse(
             url=f"http://localhost:3000/auth/callback?code={code}&state={state}",
             status_code=302
         )
-        
-    except Exception as e:
+
+    except Exception:
         return RedirectResponse(
             url="http://localhost:3000/auth?error=callback_failed",
             status_code=302
         )
-        
+
 @router.post("/github/callback")
 async def github_callback_post(
-    callback_data: GitHubCallbackRequest, 
+    callback_data: GitHubCallbackRequest,
     db: Session = Depends(get_db)
 ):
     """Handle GitHub OAuth callback via POST (for frontend)"""
     return await github_callback(
-        code=callback_data.code, 
-        state=callback_data.state, 
+        code=callback_data.code,
+        state=callback_data.state,
         db=db
     )
 

@@ -8,9 +8,11 @@
 #   - CommitDiffResponse: Full commit diff with file-by-file changes
 # ============================================================================
 
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Any, Optional
+
+from pydantic import BaseModel
+
 
 class RepositoryCreate(BaseModel):
     repo_name: str
@@ -28,7 +30,7 @@ class RepositoryResponse(BaseModel):
     last_analyzed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -52,15 +54,15 @@ class GitHubRepositoryResponse(BaseModel):
 class CommitResponse(BaseModel):
     sha: str
     message: str
-    author: Dict[str, Any]
-    committer: Dict[str, Any]
+    author: dict[str, Any]
+    committer: dict[str, Any]
     html_url: str
-    stats: Optional[Dict[str, Any]] = None
+    stats: Optional[dict[str, Any]] = None
 
 class CommitDiffResponse(BaseModel):
     sha: str
     message: str
     author: str
     date: str
-    stats: Dict[str, Any]
-    files: List[Dict[str, Any]]
+    stats: dict[str, Any]
+    files: list[dict[str, Any]]

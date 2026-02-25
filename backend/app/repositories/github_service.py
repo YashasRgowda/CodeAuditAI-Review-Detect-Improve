@@ -12,29 +12,31 @@
 # All methods require the user's GitHub access token from OAuth.
 # ============================================================================
 
-import httpx
-from github import Github
+from typing import Any
+
 from fastapi import HTTPException
-from typing import List, Dict, Any
+from github import Github
+
 from app.models.user import User
+
 
 class GitHubService:
     def __init__(self):
         self.api_base_url = "https://api.github.com"
-    
-    async def get_user_repositories(self, user: User, per_page: int = 30) -> List[Dict[str, Any]]:
+
+    async def get_user_repositories(self, user: User, per_page: int = 30) -> list[dict[str, Any]]:
         """Fetch user's GitHub repositories"""
         try:
             # Use PyGithub for easier API interaction
             g = Github(user.access_token)
             github_user = g.get_user()
-            
+
             repositories = []
             # Get repositories without per_page parameter - PyGithub handles pagination internally
             for repo in github_user.get_repos(sort="updated"):
                 if len(repositories) >= per_page:
                     break
-                    
+
                 repo_data = {
                     "id": repo.id,
                     "name": repo.name,
@@ -53,18 +55,18 @@ class GitHubService:
                     "size": repo.size
                 }
                 repositories.append(repo_data)
-            
+
             return repositories
-            
+
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to fetch repositories: {str(e)}")
-    
-    async def get_repository_details(self, user: User, repo_full_name: str) -> Dict[str, Any]:
+
+    async def get_repository_details(self, user: User, repo_full_name: str) -> dict[str, Any]:
         """Get detailed information about a specific repository"""
         try:
             g = Github(user.access_token)
             repo = g.get_repo(repo_full_name)
-            
+
             return {
                 "id": repo.id,
                 "name": repo.name,
@@ -88,16 +90,16 @@ class GitHubService:
                 # Remove the disabled line - this attribute doesn't exist
                 "topics": repo.get_topics()
             }
-            
+
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"Repository not found: {str(e)}")
-    
-    async def get_recent_commits(self, user: User, repo_full_name: str, limit: int = 10) -> List[Dict[str, Any]]:
+
+    async def get_recent_commits(self, user: User, repo_full_name: str, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent commits from a repository"""
         try:
             g = Github(user.access_token)
             repo = g.get_repo(repo_full_name)
-            
+
             commits = []
             for commit in repo.get_commits()[:limit]:
                 commit_data = {
@@ -121,19 +123,19 @@ class GitHubService:
                     } if commit.stats else None
                 }
                 commits.append(commit_data)
-            
+
             return commits
-            
+
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to fetch commits: {str(e)}")
-    
-    async def get_commit_diff(self, user: User, repo_full_name: str, commit_sha: str) -> Dict[str, Any]:
+
+    async def get_commit_diff(self, user: User, repo_full_name: str, commit_sha: str) -> dict[str, Any]:
         """Get detailed diff information for a specific commit"""
         try:
             g = Github(user.access_token)
             repo = g.get_repo(repo_full_name)
             commit = repo.get_commit(commit_sha)
-            
+
             files_changed = []
             for file in commit.files:
                 file_data = {
@@ -145,7 +147,7 @@ class GitHubService:
                     "patch": file.patch if hasattr(file, 'patch') else None
                 }
                 files_changed.append(file_data)
-            
+
             return {
                 "sha": commit.sha,
                 "message": commit.commit.message,
@@ -158,16 +160,16 @@ class GitHubService:
                 },
                 "files": files_changed
             }
-            
+
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to fetch commit diff: {str(e)}")
 
-    async def get_repository_pull_requests(self, user: User, repo_full_name: str, state: str = "open", limit: int = 30) -> List[Dict[str, Any]]:
+    async def get_repository_pull_requests(self, user: User, repo_full_name: str, state: str = "open", limit: int = 30) -> list[dict[str, Any]]:
         """Get pull requests from a repository"""
         try:
             g = Github(user.access_token)
             repo = g.get_repo(repo_full_name)
-            
+
             pull_requests = []
             for pr in repo.get_pulls(state=state, sort="updated")[:limit]:
                 pr_data = {
@@ -187,19 +189,19 @@ class GitHubService:
                     "changed_files": pr.changed_files
                 }
                 pull_requests.append(pr_data)
-            
+
             return pull_requests
-            
+
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to fetch pull requests: {str(e)}")
 
-    async def get_pull_request_files(self, user: User, repo_full_name: str, pr_number: int) -> Dict[str, Any]:
+    async def get_pull_request_files(self, user: User, repo_full_name: str, pr_number: int) -> dict[str, Any]:
         """Get detailed file changes for a specific pull request"""
         try:
             g = Github(user.access_token)
             repo = g.get_repo(repo_full_name)
             pr = repo.get_pull(pr_number)
-            
+
             files_changed = []
             for file in pr.get_files():
                 file_data = {
@@ -211,7 +213,7 @@ class GitHubService:
                     "patch": file.patch if hasattr(file, 'patch') else None
                 }
                 files_changed.append(file_data)
-            
+
             return {
                 "pr_number": pr.number,
                 "title": pr.title,
@@ -229,9 +231,9 @@ class GitHubService:
                 },
                 "files": files_changed
             }
-            
+
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to fetch PR files: {str(e)}")
-        
+
 # Create global instance
 github_service = GitHubService()

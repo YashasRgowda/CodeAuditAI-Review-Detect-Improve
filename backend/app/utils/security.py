@@ -10,12 +10,14 @@
 # Used as a dependency in route handlers: Depends(get_current_user)
 # ============================================================================
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
@@ -27,10 +29,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
@@ -53,19 +55,19 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     payload = verify_token(credentials.credentials)
     if payload is None:
         raise credentials_exception
-    
+
     user_id: str = payload.get("sub")
     if user_id is None:
         raise credentials_exception
-    
+
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise credentials_exception
-    
+
     return user
 
 async def get_current_user_optional(
@@ -75,7 +77,7 @@ async def get_current_user_optional(
     """Get current user if authenticated, else None"""
     if not credentials:
         return None
-    
+
     try:
         return await get_current_user(credentials, db)
     except HTTPException:
