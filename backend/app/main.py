@@ -22,12 +22,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine
 from app.middleware.rate_limiter import RateLimitMiddleware
-from app.models import analysis, pr_analysis, repository, user
+from app.models import analysis, pr_analysis, pull_request, repository, user  # noqa: F401
 from app.webhooks.github_webhooks import router as webhook_router
 
-# Create database tables
+# Create all database tables (order matters — pull_requests must exist before pr_analysis_results)
 user.Base.metadata.create_all(bind=engine)
 repository.Base.metadata.create_all(bind=engine)
+pull_request.Base.metadata.create_all(bind=engine)
 analysis.Base.metadata.create_all(bind=engine)
 pr_analysis.Base.metadata.create_all(bind=engine)
 
