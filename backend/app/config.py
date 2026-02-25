@@ -7,7 +7,6 @@
 # All values can be overridden via environment variables or the .env file.
 # ============================================================================
 
-from typing import Optional
 
 from pydantic_settings import BaseSettings
 
@@ -23,8 +22,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
 
     # GitHub OAuth
-    GITHUB_CLIENT_ID: Optional[str] = None
-    GITHUB_CLIENT_SECRET: Optional[str] = None
+    GITHUB_CLIENT_ID: str | None = None
+    GITHUB_CLIENT_SECRET: str | None = None
 
     # Security
     SECRET_KEY: str = "your-super-secret-key-change-this-in-production"

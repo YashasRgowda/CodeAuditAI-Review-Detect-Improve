@@ -23,7 +23,6 @@
 # ============================================================================
 
 import json
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -235,7 +234,7 @@ async def create_analysis(
 
 @router.get("/", response_model=list[AnalysisResponse])
 async def get_analyses(
-    repository_id: Optional[int] = Query(None),
+    repository_id: int | None = Query(None),
     limit: int = Query(10, le=50),
     db: Session = Depends(get_db)
 ):

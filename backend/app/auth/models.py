@@ -9,7 +9,6 @@
 # ============================================================================
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -17,16 +16,16 @@ from pydantic import BaseModel
 class UserCreate(BaseModel):
     github_id: str
     username: str
-    email: Optional[str] = None
-    avatar_url: Optional[str] = None
+    email: str | None = None
+    avatar_url: str | None = None
     access_token: str
 
 class UserResponse(BaseModel):
     id: int
     github_id: str
     username: str
-    email: Optional[str] = None
-    avatar_url: Optional[str] = None
+    email: str | None = None
+    avatar_url: str | None = None
     created_at: datetime
 
     class Config:
@@ -39,4 +38,4 @@ class TokenResponse(BaseModel):
 
 class GitHubCallbackRequest(BaseModel):
     code: str
-    state: Optional[str] = None
+    state: str | None = None

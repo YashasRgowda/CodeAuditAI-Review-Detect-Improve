@@ -18,7 +18,7 @@ class RepositoryCreate(BaseModel):
     repo_name: str
     repo_url: str
     github_repo_id: str
-    description: Optional[str] = None
+    description: str | None = None
 
 class RepositoryResponse(BaseModel):
     id: int
@@ -26,7 +26,7 @@ class RepositoryResponse(BaseModel):
     repo_name: str
     repo_url: str
     github_repo_id: str
-    description: Optional[str] = None
+    description: str | None = None
     last_analyzed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -38,7 +38,7 @@ class GitHubRepositoryResponse(BaseModel):
     id: int
     name: str
     full_name: str
-    description: Optional[str] = None
+    description: str | None = None
     html_url: str
     clone_url: str
     ssh_url: str

@@ -15,7 +15,7 @@
 
 import ast
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class ASTParser:
@@ -30,7 +30,7 @@ class ASTParser:
             '.tsx': 'typescript'
         }
 
-    def detect_language(self, filename: str) -> Optional[str]:
+    def detect_language(self, filename: str) -> str | None:
         """Detect programming language from file extension"""
         file_extension = Path(filename).suffix.lower()
         return self.supported_languages.get(file_extension)
