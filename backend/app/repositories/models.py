@@ -9,7 +9,7 @@
 # ============================================================================
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -27,9 +27,9 @@ class RepositoryResponse(BaseModel):
     repo_url: str
     github_repo_id: str
     description: str | None = None
-    last_analyzed_at: Optional[datetime] = None
+    last_analyzed_at: datetime | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -43,11 +43,11 @@ class GitHubRepositoryResponse(BaseModel):
     clone_url: str
     ssh_url: str
     private: bool
-    language: Optional[str] = None
+    language: str | None = None
     stargazers_count: int
     forks_count: int
-    updated_at: Optional[str] = None
-    created_at: Optional[str] = None
+    updated_at: str | None = None
+    created_at: str | None = None
     default_branch: str
     size: int
 
@@ -57,7 +57,7 @@ class CommitResponse(BaseModel):
     author: dict[str, Any]
     committer: dict[str, Any]
     html_url: str
-    stats: Optional[dict[str, Any]] = None
+    stats: dict[str, Any] | None = None
 
 class CommitDiffResponse(BaseModel):
     sha: str
