@@ -1,3 +1,13 @@
+# ============================================================================
+# AUTH/MODELS.PY — Pydantic Schemas for Authentication
+# ============================================================================
+# Defines request/response shapes for auth-related API endpoints:
+#   - UserCreate: Data needed to create a new user in the database
+#   - UserResponse: User data returned to the frontend (no sensitive fields)
+#   - TokenResponse: JWT token + user info returned after successful login
+#   - GitHubCallbackRequest: The code & state sent from GitHub after OAuth
+# ============================================================================
+
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime

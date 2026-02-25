@@ -1,3 +1,14 @@
+# ============================================================================
+# REDIS_CLIENT.PY — Redis Connection & Cache Management
+# ============================================================================
+# Connects to Redis server for caching and temporary data storage.
+# Provides:
+#   - redis_client: Global Redis connection instance
+#   - test_redis_connection(): Verifies Redis is reachable
+#   - CacheManager: Helper class with set/get/delete/exists methods
+#     for easy caching with automatic expiration (default: 1 hour)
+# ============================================================================
+
 import redis
 from app.config import settings
 

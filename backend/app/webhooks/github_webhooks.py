@@ -1,3 +1,15 @@
+# ============================================================================
+# WEBHOOKS/GITHUB_WEBHOOKS.PY — GitHub Webhook Event Handler
+# ============================================================================
+# Receives real-time events from GitHub when things happen in tracked repos.
+# Handles two event types:
+#   - Pull Request events: When a PR is opened/updated/merged, stores the
+#     PR metadata in the database (pull_requests table)
+#   - Push events: When new commits are pushed, logs the commit info
+# The webhook URL (POST /webhooks/github) must be registered in the GitHub
+# repo settings under Settings → Webhooks.
+# ============================================================================
+
 from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db

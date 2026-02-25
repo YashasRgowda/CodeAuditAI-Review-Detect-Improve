@@ -1,3 +1,17 @@
+# ============================================================================
+# REPOSITORIES/GITHUB_SERVICE.PY — GitHub API Integration Service
+# ============================================================================
+# Uses the PyGithub library to interact with the GitHub API.
+# Provides methods to:
+#   - get_user_repos()       → Fetch all repos the user has access to
+#   - get_repo_commits()     → Get recent commits for a specific repo
+#   - get_commit_diff()      → Get the full code diff for a specific commit
+#   - get_pull_requests()    → Fetch all PRs for a repo
+#   - get_pr_details()       → Get detailed info + diff for a specific PR
+#   - get_pr_diff()          → Get just the code diff of a PR
+# All methods require the user's GitHub access token from OAuth.
+# ============================================================================
+
 import httpx
 from github import Github
 from fastapi import HTTPException

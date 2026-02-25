@@ -1,3 +1,21 @@
+# ============================================================================
+# MAIN.PY — FastAPI Application Entry Point
+# ============================================================================
+# The main file that starts the entire backend server. It:
+#   1. Creates all database tables on startup (users, repositories, etc.)
+#   2. Configures CORS to allow the Next.js frontend (localhost:3000)
+#   3. Adds rate limiting middleware (1000 requests/hour per IP)
+#   4. Registers all route groups:
+#      - /auth/*       → GitHub OAuth authentication
+#      - /repos/*      → Repository & commit management
+#      - /analysis/*   → AI-powered code analysis
+#      - /webhooks/*   → GitHub webhook listener
+#   5. Provides health check endpoints (/ and /health)
+#
+# Run with: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Swagger docs available at: http://localhost:8000/docs
+# ============================================================================
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings

@@ -1,3 +1,20 @@
+# ============================================================================
+# REPOSITORIES/ROUTES.PY — Repository & GitHub Data API Endpoints
+# ============================================================================
+# All endpoints for managing repositories and fetching GitHub data:
+#   - GET    /repos/                        → List user's tracked repos
+#   - POST   /repos/                        → Add a new repo to track
+#   - GET    /repos/{id}                    → Get single repo details
+#   - DELETE /repos/{id}                    → Remove repo from tracking
+#   - GET    /repos/{id}/commits            → Fetch recent commits from GitHub
+#   - GET    /repos/{id}/commits/{sha}/diff → Get full code diff of a commit
+#   - GET    /repos/{id}/pulls              → Fetch pull requests from GitHub
+#   - GET    /repos/{id}/pulls/{num}        → Get detailed PR info + diff
+#
+# Most endpoints require authentication (JWT token) to identify the user.
+# Commits/PRs are fetched live from GitHub, not stored locally.
+# ============================================================================
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
@@ -33,26 +50,7 @@ async def list_github_repositories(
         repositories = await github_service.get_user_repositories(user, per_page)
         return [GitHubRepositoryResponse(**repo) for repo in repositories]
     except Exception as e:
-        print(f"GitHub API Error: {str(e)}")
-        return [
-            GitHubRepositoryResponse(
-                id=123456,
-                name="sample-repo",
-                full_name="YashasRgowda/sample-repo", 
-                description="Sample repository for testing",
-                html_url="https://github.com/YashasRgowda/sample-repo",
-                clone_url="https://github.com/YashasRgowda/sample-repo.git",
-                ssh_url="git@github.com:YashasRgowda/sample-repo.git",
-                private=False,
-                language="Python",
-                stargazers_count=5,
-                forks_count=2,
-                updated_at="2025-08-28T02:30:00Z",
-                created_at="2025-08-01T10:00:00Z",
-                default_branch="main",
-                size=1024
-            )
-        ]
+        raise HTTPException(status_code=400, detail=f"Failed to fetch GitHub repos: {str(e)}")
 
 @router.post("/add-github-repo", response_model=RepositoryResponse)
 async def add_github_repository(
@@ -168,28 +166,7 @@ async def get_repository_commits(
         commits = await github_service.get_recent_commits(user, repository.repo_name, limit)
         return [CommitResponse(**commit) for commit in commits]
     except Exception as e:
-        return [
-            CommitResponse(
-                sha="abc123def456",
-                message="Add new feature for code analysis",
-                author={
-                    "name": "YashasRgowda",
-                    "email": "yashas@example.com",
-                    "date": "2025-08-28T02:30:00Z"
-                },
-                committer={
-                    "name": "YashasRgowda", 
-                    "email": "yashas@example.com",
-                    "date": "2025-08-28T02:30:00Z"
-                },
-                html_url="https://github.com/YashasRgowda/sample-repo/commit/abc123def456",
-                stats={
-                    "total": 25,
-                    "additions": 20,
-                    "deletions": 5
-                }
-            )
-        ]
+        raise HTTPException(status_code=400, detail=f"Failed to fetch commits: {str(e)}")
 
 @router.get("/{repo_id}/commits/{commit_sha}/diff", response_model=CommitDiffResponse)
 async def get_commit_diff(
@@ -211,49 +188,8 @@ async def get_commit_diff(
         commit_diff = await github_service.get_commit_diff(user, repository.repo_name, commit_sha)
         return CommitDiffResponse(**commit_diff)
     except Exception as e:
-        return CommitDiffResponse(
-            sha=commit_sha,
-            message="Add new feature for code analysis",
-            author="YashasRgowda",
-            date="2025-08-28T02:30:00Z",
-            stats={
-                "total": 25,
-                "additions": 20,
-                "deletions": 5
-            },
-            files=[
-                {
-                    "filename": "src/analyzer.py",
-                    "status": "modified",
-                    "additions": 15,
-                    "deletions": 3,
-                    "changes": 18,
-                    "patch": "@@ -1,3 +1,15 @@\n+def analyze_code():\n+    pass"
-                }
-            ]
-        )
-    
-@router.get("/debug/check-pr-table")
-async def check_pr_table(db: Session = Depends(get_db)):
-    """Debug endpoint to verify pull_requests table exists"""
-    try:
-        from app.models.pull_request import PullRequest
-        
-        # Try to query the table (should return empty list)
-        prs = db.query(PullRequest).all()
-        
-        return {
-            "table_exists": True,
-            "pr_count": len(prs),
-            "message": "pull_requests table created successfully"
-        }
-    except Exception as e:
-        return {
-            "table_exists": False,
-            "error": str(e),
-            "message": "Failed to access pull_requests table"
-        }
-    
+        raise HTTPException(status_code=400, detail=f"Failed to fetch commit diff: {str(e)}")
+
 @router.get("/{repo_id}/pull-requests", response_model=List[GitHubPullRequestResponse])
 async def get_repository_pull_requests(
     repo_id: int,
@@ -296,29 +232,3 @@ async def get_pull_request_files(
         return PullRequestFilesResponse(**pr_files)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to get PR files: {str(e)}")
-
-@router.get("/debug/github-user")
-async def debug_github_user(db: Session = Depends(get_db)):
-    """Debug endpoint to test GitHub API connection"""
-    user = db.query(User).first()
-    if not user:
-        return {"error": "No user found"}
-    
-    try:
-        from github import Github
-        g = Github(user.access_token)
-        github_user = g.get_user()
-        
-        return {
-            "github_username": github_user.login,
-            "github_id": github_user.id,
-            "token_length": len(user.access_token),
-            "token_prefix": user.access_token[:10] + "...",
-            "api_status": "working"
-        }
-    except Exception as e:
-        return {
-            "error": str(e),
-            "token_length": len(user.access_token) if user.access_token else 0,
-            "api_status": "failed"
-        }

@@ -1,3 +1,12 @@
+# ============================================================================
+# CONFIG.PY — Application Configuration
+# ============================================================================
+# Loads all environment variables from the .env file using Pydantic Settings.
+# Contains: Database URL, Redis URL, Gemini API key, GitHub OAuth credentials,
+# JWT secret key, and app settings (debug mode, host, port).
+# All values can be overridden via environment variables or the .env file.
+# ============================================================================
+
 from pydantic_settings import BaseSettings
 from typing import Optional
 

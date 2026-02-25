@@ -1,3 +1,15 @@
+# ============================================================================
+# AUTH/ROUTES.PY — Authentication API Endpoints
+# ============================================================================
+# Handles all authentication-related API routes:
+#   - GET  /auth/github/login    → Returns GitHub OAuth URL for login
+#   - GET  /auth/github/callback → GitHub redirects here after user approves;
+#     exchanges code for token, creates/updates user in DB, redirects to frontend
+#   - POST /auth/github/callback → Same as above but via POST (for frontend)
+#   - GET  /auth/me              → Get current authenticated user info
+#   - POST /auth/logout          → Logout (client deletes token)
+# ============================================================================
+
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session

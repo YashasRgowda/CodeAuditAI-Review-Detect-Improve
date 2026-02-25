@@ -1,3 +1,15 @@
+# ============================================================================
+# DATABASE.PY — PostgreSQL Database Connection & Session Management
+# ============================================================================
+# Sets up SQLAlchemy engine connected to PostgreSQL using pg8000 driver.
+# Provides:
+#   - engine: The database connection engine with connection pooling
+#   - SessionLocal: Factory for creating database sessions
+#   - Base: Base class that all database models inherit from
+#   - get_db(): FastAPI dependency that provides a DB session per request
+#   - test_connection(): Helper to verify the database is reachable
+# ============================================================================
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker

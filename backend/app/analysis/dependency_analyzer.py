@@ -1,3 +1,16 @@
+# ============================================================================
+# ANALYSIS/DEPENDENCY_ANALYZER.PY — Cross-File Dependency Analyzer
+# ============================================================================
+# Analyzes import statements across files to map code dependencies:
+#   - Extracts Python imports (import X, from X import Y)
+#   - Extracts JavaScript imports (import/require statements)
+#   - Builds a dependency graph (which file depends on which)
+#   - Detects risks: circular dependencies, excessive imports,
+#     unused imports, tightly coupled modules
+#   - Calculates dependency complexity score (0-100)
+# Used by gemini_service to give Gemini context about code coupling.
+# ============================================================================
+
 from typing import Dict, List, Any, Set
 import re
 from pathlib import Path

@@ -1,3 +1,16 @@
+# ============================================================================
+# ANALYSIS/PERFORMANCE_ANALYZER.PY — Performance Anti-Pattern Detector
+# ============================================================================
+# Scans code for common performance issues using regex patterns:
+#   - Nested loops (O(n²) complexity)
+#   - String concatenation in loops (memory inefficient)
+#   - Missing database query optimization (N+1 queries)
+#   - Large list comprehensions, synchronous I/O in async code
+#   - Missing pagination, excessive recursion, global state mutation
+# Returns: list of issues with severity, and a performance score (0-100).
+# Used by gemini_service to feed performance context to AI analysis.
+# ============================================================================
+
 import re
 from typing import Dict, List, Any
 

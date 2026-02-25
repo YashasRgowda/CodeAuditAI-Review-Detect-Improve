@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
-"""
-Test script to verify our setup works
-"""
+# ============================================================================
+# TEST_SETUP.PY — Setup Verification Script
+# ============================================================================
+# Run this script to verify everything is properly configured:
+#   1. Tests all Python imports are working
+#   2. Validates .env settings are loaded (DB URL, Redis, Gemini key)
+#   3. Tests PostgreSQL database connection
+#   4. Tests Redis connection
+#   5. Creates all database tables if they don't exist
+#
+# Usage: python test_setup.py
+# ============================================================================
 
 import sys
 import os

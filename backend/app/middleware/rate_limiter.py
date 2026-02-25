@@ -1,3 +1,16 @@
+# ============================================================================
+# MIDDLEWARE/RATE_LIMITER.PY — IP-Based Rate Limiting Middleware
+# ============================================================================
+# Limits how many API requests each IP address can make per hour.
+# Default: 1000 requests per hour per IP (configurable).
+# How it works:
+#   - Tracks request timestamps per IP in memory (defaultdict)
+#   - On each request, removes timestamps older than 1 hour
+#   - If count exceeds limit → returns HTTP 429 "Too Many Requests"
+#   - Adds X-RateLimit-Remaining header to every response
+# Applied globally to all endpoints via middleware in main.py.
+# ============================================================================
+
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 import time

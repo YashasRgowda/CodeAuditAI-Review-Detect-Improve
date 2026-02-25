@@ -1,3 +1,17 @@
+# ============================================================================
+# GITHUB_OAUTH.PY — GitHub OAuth Authentication Handler
+# ============================================================================
+# Handles the GitHub OAuth 2.0 flow for user login:
+#   1. get_authorization_url() → Builds the GitHub login URL with scopes
+#      (user:email + repo access)
+#   2. exchange_code_for_token() → After user approves, exchanges the
+#      authorization code for a GitHub access token
+#   3. get_user_info() → Uses the access token to fetch user profile
+#      (username, email, avatar) from GitHub API
+#
+# Flow: Frontend → GitHub Login → GitHub Callback → Token → User Info
+# ============================================================================
+
 import httpx
 from fastapi import HTTPException
 from app.config import settings

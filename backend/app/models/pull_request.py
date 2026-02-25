@@ -1,3 +1,12 @@
+# ============================================================================
+# MODELS/PULL_REQUEST.PY — Pull Request Database Model (pull_requests table)
+# ============================================================================
+# Stores GitHub pull request metadata for tracked repositories.
+# Fields: pr_number, title, author, state (open/closed/merged),
+# base_branch, head_branch, files_changed, lines_added/removed.
+# Relationships: belongs to Repository, has many PRAnalyses.
+# ============================================================================
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship

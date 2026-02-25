@@ -1,3 +1,18 @@
+# ============================================================================
+# ANALYSIS/AST_PARSER.PY — Multi-Language Abstract Syntax Tree Parser
+# ============================================================================
+# Parses source code into AST (tree structure) to extract detailed metrics:
+#   - Python files: Uses Python's built-in 'ast' module
+#   - JS/JSX files: Uses regex-based pattern matching
+# Extracts for each file:
+#   - Function count, class count, total lines
+#   - Cyclomatic complexity (how many if/for/while branches)
+#   - Function details (name, args, line number, complexity)
+#   - Code quality issues (long functions, deep nesting, etc.)
+#   - Security issues (eval, exec, SQL injection patterns)
+# The ast_parser singleton is used by gemini_service for AI analysis.
+# ============================================================================
+
 import ast
 import os
 from typing import Dict, List, Any, Optional

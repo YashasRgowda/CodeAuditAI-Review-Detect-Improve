@@ -1,3 +1,12 @@
+# ============================================================================
+# REPOSITORIES/PULL_REQUEST_MODELS.PY — Pydantic Schemas for Pull Requests
+# ============================================================================
+# Defines response shapes for pull request API endpoints:
+#   - PullRequestResponse: PR metadata (title, author, state, branches)
+#   - PullRequestDetailResponse: Full PR data including files changed,
+#     lines added/removed, list of commits, and the complete code diff
+# ============================================================================
+
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime

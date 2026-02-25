@@ -1,3 +1,11 @@
+# ============================================================================
+# MODELS/USER.PY — User Database Model (users table)
+# ============================================================================
+# Stores authenticated users who logged in via GitHub OAuth.
+# Fields: github_id, username, email, avatar_url, access_token (GitHub token)
+# This is the first table — all other tables reference users via user_id.
+# ============================================================================
+
 from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.sql import func
 from app.database import Base

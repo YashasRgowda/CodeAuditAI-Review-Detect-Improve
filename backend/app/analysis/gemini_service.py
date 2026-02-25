@@ -1,3 +1,22 @@
+# ============================================================================
+# ANALYSIS/GEMINI_SERVICE.PY — Core AI Analysis Engine (Google Gemini)
+# ============================================================================
+# THE HEART OF THE AI SYSTEM. Orchestrates the full analysis pipeline:
+#   1. Takes code diff (commit or PR changes)
+#   2. Runs static analysis tools (AST, security, dependency, performance)
+#   3. Builds a detailed prompt combining code + static analysis results
+#   4. Sends the prompt to Google Gemini 2.5 Flash AI
+#   5. Parses AI response into structured scores and recommendations
+#
+# Key methods:
+#   - analyze_commit()   → Full AI analysis of a single commit
+#   - quick_analysis()   → Fast AI summary of code changes
+#   - analyze_pr()       → Full AI analysis of a pull request
+#
+# The AI returns: risk level, summary, maintainability/security/performance
+# scores, technical debt ratio, and detailed recommendations.
+# ============================================================================
+
 import google.generativeai as genai
 from fastapi import HTTPException
 from typing import Dict, Any, List

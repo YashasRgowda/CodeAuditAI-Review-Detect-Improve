@@ -1,3 +1,13 @@
+# ============================================================================
+# REPOSITORIES/MODELS.PY — Pydantic Schemas for Repositories & Commits
+# ============================================================================
+# Defines request/response shapes for repository-related API endpoints:
+#   - RepositoryCreate: Input schema when adding a new repo to track
+#   - RepositoryResponse: Full repo data returned to frontend
+#   - CommitResponse: Commit metadata (sha, author, message, date)
+#   - CommitDiffResponse: Full commit diff with file-by-file changes
+# ============================================================================
+
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime

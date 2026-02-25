@@ -1,3 +1,17 @@
+# ============================================================================
+# ANALYSIS/SECURITY_SCANNER.PY — Security Vulnerability Scanner
+# ============================================================================
+# Scans code for common security anti-patterns using regex rules:
+#   - eval()/exec() usage (code injection risk)
+#   - Hardcoded secrets/passwords in code
+#   - SQL injection patterns (string concatenation in queries)
+#   - XSS vulnerabilities (innerHTML, document.write)
+#   - Insecure HTTP usage, weak crypto, path traversal
+#   - Command injection (os.system, subprocess with shell=True)
+# Returns: list of findings with severity (high/medium/low) and risk score.
+# Used by gemini_service to feed security context to AI analysis.
+# ============================================================================
+
 import re
 from typing import Dict, List, Any
 

@@ -1,3 +1,11 @@
+# ============================================================================
+# MODELS/REPOSITORY.PY — Repository Database Model (repositories table)
+# ============================================================================
+# Stores GitHub repositories that a user has added for tracking/analysis.
+# Fields: repo_name (e.g. "user/repo"), repo_url, github_repo_id, description
+# Relationships: belongs to User, has many Analyses, PullRequests, PRAnalyses
+# ============================================================================
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship

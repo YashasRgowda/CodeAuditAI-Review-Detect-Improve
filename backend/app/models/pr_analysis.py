@@ -1,3 +1,13 @@
+# ============================================================================
+# MODELS/PR_ANALYSIS.PY — PR Analysis Database Model (pr_analysis_results table)
+# ============================================================================
+# Stores AI-generated analysis results for pull requests.
+# Similar to commit analysis but specific to PRs. Contains: AI summary,
+# full analysis text, risk level, change type, overall score (1-10),
+# and complete analysis data as JSON.
+# Created when user triggers POST /analysis/pr/ for a specific PR.
+# ============================================================================
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship

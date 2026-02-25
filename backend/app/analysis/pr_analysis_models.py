@@ -1,3 +1,12 @@
+# ============================================================================
+# ANALYSIS/PR_ANALYSIS_MODELS.PY — Pydantic Schemas for PR Analysis
+# ============================================================================
+# Defines request/response shapes for pull request analysis endpoints:
+#   - PRAnalysisRequest: Input for triggering PR analysis (repo_id + pr_number)
+#   - PRAnalysisResponse: Full PR analysis result with AI-generated scores,
+#     summary, change type, risk level, and complete analysis data (JSON)
+# ============================================================================
+
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime

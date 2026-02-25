@@ -1,3 +1,13 @@
+# ============================================================================
+# MODELS/ANALYSIS.PY — Commit Analysis Database Model (analysis_results table)
+# ============================================================================
+# Stores AI-generated analysis results for individual commits.
+# Each analysis contains: AI summary, risk level, changes data (JSON),
+# and quantified scores — maintainability, security, performance,
+# dependency complexity, and technical debt ratio.
+# Created when user triggers POST /analysis/ for a specific commit.
+# ============================================================================
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship

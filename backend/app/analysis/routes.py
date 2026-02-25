@@ -1,3 +1,19 @@
+# ============================================================================
+# ANALYSIS/ROUTES.PY — AI Analysis API Endpoints
+# ============================================================================
+# All endpoints for AI-powered code analysis:
+#   - POST /analysis/quick             → Quick AI summary of a commit
+#   - POST /analysis/                  → Full detailed AI analysis of a commit
+#   - GET  /analysis/                  → List all past analyses (with filters)
+#   - GET  /analysis/{id}              → Get a specific analysis by ID
+#   - GET  /analysis/compare           → Compare two analyses side-by-side
+#   - POST /analysis/pr/               → Full AI analysis of a pull request
+#   - GET  /analysis/pr/{repo}/{pr}    → Get past PR analysis results
+#
+# Quick analysis returns results without saving to DB.
+# Full analysis saves results to the database for history tracking.
+# ============================================================================
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -25,82 +41,29 @@ from app.analysis.pr_analysis_models import (
 router = APIRouter()
 
 @router.post("/quick", response_model=QuickAnalysisResponse)
-async def quick_analysis(request: AnalysisRequest):
-    """Quick analysis of code changes without saving to database"""
+async def quick_analysis(request: AnalysisRequest, db: Session = Depends(get_db)):
+    """Quick AI analysis of a commit — returns results without saving to DB"""
     
-    # For demo purposes, create mock commit data
-    # In real implementation, this would fetch from GitHub API
-    mock_commit_data = {
-        "sha": request.commit_sha or "abc123def456", 
-        "message": "Add new feature for better code analysis",
-        "author": "YashasRgowda",
-        "date": "2025-08-28T02:30:00Z",
-        "stats": {
-            "total": 45,
-            "additions": 35,
-            "deletions": 10
-        },
-        "files": [
-            {
-                "filename": "src/analyzer.py",
-                "status": "modified", 
-                "additions": 25,
-                "deletions": 5,
-                "changes": 30,
-                "patch": """@@ -1,10 +1,25 @@
- import ast
- import os
-+from typing import List, Dict, Any
- 
- class CodeAnalyzer:
-     def __init__(self):
--        self.results = []
-+        self.results = {}
-+        self.file_count = 0
-     
--    def analyze(self, file_path):
--        # Basic analysis
--        return {"status": "analyzed"}
-+    def analyze(self, file_path: str) -> Dict[str, Any]:
-+        \"\"\"Analyze a Python file for complexity and issues\"\"\"
-+        try:
-+            with open(file_path, 'r') as f:
-+                content = f.read()
-+            
-+            tree = ast.parse(content)
-+            analysis = {
-+                "file": file_path,
-+                "functions": self._count_functions(tree),
-+                "classes": self._count_classes(tree), 
-+                "complexity": self._calculate_complexity(tree)
-+            }
-+            return analysis
-+        except Exception as e:
-+            return {"error": str(e)}"""
-            },
-            {
-                "filename": "tests/test_analyzer.py",
-                "status": "added",
-                "additions": 10,
-                "deletions": 0, 
-                "changes": 10,
-                "patch": """@@ -0,0 +1,10 @@
-+import unittest
-+from src.analyzer import CodeAnalyzer
-+
-+class TestCodeAnalyzer(unittest.TestCase):
-+    def setUp(self):
-+        self.analyzer = CodeAnalyzer()
-+    
-+    def test_analyze_basic(self):
-+        result = self.analyzer.analyze("sample.py")
-+        self.assertIn("functions", result)"""
-            }
-        ]
-    }
+    # Find repository and user to fetch real commit data
+    repository = db.query(Repository).filter(Repository.id == request.repository_id).first()
+    if not repository:
+        raise HTTPException(status_code=404, detail="Repository not found")
     
-    # Analyze with Gemini AI
-    analysis_result = await gemini_service.analyze_code_changes(mock_commit_data)
+    user = db.query(User).filter(User.id == repository.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Repository owner not found")
+    
+    # Fetch REAL commit data from GitHub
+    try:
+        commit_data = await github_service.get_commit_diff(user, repository.repo_name, request.commit_sha)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch commit: {str(e)}")
+    
+    # Analyze with Gemini AI using REAL data
+    try:
+        analysis_result = await gemini_service.analyze_code_changes(commit_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
     
     return QuickAnalysisResponse(
         summary=analysis_result["summary"],
@@ -112,11 +75,7 @@ async def quick_analysis(request: AnalysisRequest):
         commit_hash=analysis_result["commit_hash"],
         commit_message=analysis_result["commit_message"],
         author=analysis_result["author"],
-        recommendations=[
-            "Add unit tests for the new complexity calculation methods",
-            "Consider adding error handling for malformed Python files",
-            "Document the complexity scoring algorithm"
-        ]
+        recommendations=analysis_result.get("recommendations", [])
     )
 
 @router.post("/", response_model=AnalysisResponse)
@@ -249,9 +208,9 @@ async def quick_pr_analysis(request: QuickPRAnalysisRequest, db: Session = Depen
             files_changed=analysis_result["files_changed"],
             lines_added=analysis_result["lines_added"],
             lines_removed=analysis_result["lines_removed"],
-            impact_areas=["Multi-document features", "Backend APIs", "Frontend UI"],
-            security_concerns=["Data validation", "File upload handling"],
-            recommendations=analysis_result["recommendations"],
+            impact_areas=analysis_result.get("impact_areas", []),
+            security_concerns=analysis_result.get("security_concerns", []),
+            recommendations=analysis_result.get("recommendations", []),
             overall_score=analysis_result["overall_score"]
         )
         

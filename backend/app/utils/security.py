@@ -1,3 +1,15 @@
+# ============================================================================
+# UTILS/SECURITY.PY — JWT Authentication & Token Management
+# ============================================================================
+# Handles all JWT (JSON Web Token) operations for securing API endpoints:
+#   - create_access_token() → Creates a signed JWT with user_id + expiry
+#   - verify_token()        → Decodes and validates a JWT token
+#   - get_current_user()    → FastAPI dependency — extracts user from token
+#   - get_current_user_optional() → Same but returns None if no token
+# Tokens expire after 30 minutes (configurable in config.py).
+# Used as a dependency in route handlers: Depends(get_current_user)
+# ============================================================================
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt

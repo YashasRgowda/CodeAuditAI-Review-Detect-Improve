@@ -1,3 +1,13 @@
+# ============================================================================
+# ANALYSIS/MODELS.PY — Pydantic Schemas for Code Analysis
+# ============================================================================
+# Defines request/response shapes for analysis API endpoints:
+#   - AnalysisCreate: Input for triggering analysis (repo_id + commit_hash)
+#   - AnalysisResponse: Full analysis result (scores, summary, risk level)
+#   - QuickAnalysisResponse: Lightweight analysis result (just summary + risk)
+#   - AnalysisCompare: Side-by-side comparison of two analyses
+# ============================================================================
+
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -27,8 +37,8 @@ class AnalysisResponse(BaseModel):
         from_attributes = True
 
 class AnalysisRequest(BaseModel):
-    repo_full_name: str
-    commit_sha: Optional[str] = None  # If None, analyze latest commit
+    repository_id: int
+    commit_sha: str
 
 class QuickAnalysisResponse(BaseModel):
     summary: str
