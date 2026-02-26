@@ -4,13 +4,16 @@
 # THE HEART OF THE AI SYSTEM. Orchestrates the full analysis pipeline:
 #   1. Takes code diff (commit or PR changes)
 #   2. Runs static analysis tools (AST, security, dependency, performance)
-#   3. Builds a detailed prompt combining code + static analysis results
-#   4. Sends the prompt to Google Gemini 2.5 Flash AI
-#   5. Receives STRUCTURED JSON response (no fragile text parsing!)
+#   3. Retrieves relevant past analyses via RAG (AI memory)
+#   4. Builds a detailed prompt combining code + static analysis + RAG context
+#   5. Sends the prompt to Google Gemini 2.5 Flash AI
+#   6. Receives STRUCTURED JSON response (no fragile text parsing!)
+#   7. Auto-stores the result in RAG knowledge base for future reference
 #
 # GenAI Features:
 #   - Structured Output: Gemini returns strict JSON via response_mime_type
 #   - Streaming: Real-time SSE streaming of analysis progress
+#   - RAG: Past analysis retrieval for trend detection and pattern matching
 #   - Multi-tool Pipeline: AST + Security + Dependency + Performance + AI
 #
 # Key methods:
@@ -119,23 +122,34 @@ class GeminiService:
         }
 
     # ====================================================================
-    # COMMIT ANALYSIS — Full AI analysis with structured JSON output
+    # COMMIT ANALYSIS — Full AI analysis with structured JSON output + RAG
     # ====================================================================
     async def analyze_code_changes(self, commit_data: dict[str, Any]) -> dict[str, Any]:
-        """Analyze code changes using Gemini AI — returns structured JSON"""
+        """Analyze code changes using Gemini AI — returns structured JSON.
+
+        Pipeline: Static Analysis → RAG Retrieval → AI Analysis → Store in RAG
+        """
         try:
             # Step 1: Run static analysis pipeline
             static_results = self._run_static_analysis(commit_data)
 
-            # Step 2: Build prompt with static analysis context
-            prompt = self._build_commit_prompt(commit_data, static_results)
+            # Step 2: Retrieve relevant past analyses from RAG (AI memory)
+            rag_context = self._get_rag_context(commit_data)
 
-            # Step 3: Get structured JSON response from Gemini
+            # Step 3: Build prompt with static analysis + RAG context
+            prompt = self._build_commit_prompt(commit_data, static_results, rag_context)
+
+            # Step 4: Get structured JSON response from Gemini
             response = self.model.generate_content(prompt)
             ai_result = json.loads(response.text)
 
-            # Step 4: Merge AI results with static analysis data + commit metadata
-            return self._build_commit_result(ai_result, commit_data, static_results)
+            # Step 5: Merge AI results with static analysis data + commit metadata
+            final_result = self._build_commit_result(ai_result, commit_data, static_results)
+
+            # Step 6: Auto-store this analysis in RAG for future reference
+            self._store_in_rag(final_result)
+
+            return final_result
 
         except json.JSONDecodeError as e:
             raise HTTPException(status_code=500, detail=f"AI returned invalid JSON: {str(e)}")
@@ -143,20 +157,31 @@ class GeminiService:
             raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
 
     # ====================================================================
-    # PR ANALYSIS — Full AI analysis with structured JSON output
+    # PR ANALYSIS — Full AI analysis with structured JSON output + RAG
     # ====================================================================
     async def analyze_pull_request(self, pr_data: dict[str, Any]) -> dict[str, Any]:
-        """Analyze pull request changes using Gemini AI — returns structured JSON"""
-        try:
-            # Build PR prompt
-            prompt = self._build_pr_prompt(pr_data)
+        """Analyze pull request changes using Gemini AI — returns structured JSON.
 
-            # Get structured JSON response from Gemini
+        Pipeline: RAG Retrieval → AI Analysis → Store in RAG
+        """
+        try:
+            # Step 1: Retrieve relevant past analyses from RAG
+            rag_context = self._get_rag_context_for_pr(pr_data)
+
+            # Step 2: Build PR prompt with RAG context
+            prompt = self._build_pr_prompt(pr_data, rag_context)
+
+            # Step 3: Get structured JSON response from Gemini
             response = self.model.generate_content(prompt)
             ai_result = json.loads(response.text)
 
-            # Build final result with PR metadata
-            return self._build_pr_result(ai_result, pr_data)
+            # Step 4: Build final result with PR metadata
+            final_result = self._build_pr_result(ai_result, pr_data)
+
+            # Step 5: Auto-store this analysis in RAG for future reference
+            self._store_in_rag(final_result)
+
+            return final_result
 
         except json.JSONDecodeError as e:
             raise HTTPException(status_code=500, detail=f"AI returned invalid JSON: {str(e)}")
@@ -164,7 +189,7 @@ class GeminiService:
             raise HTTPException(status_code=500, detail=f"PR AI analysis failed: {str(e)}")
 
     # ====================================================================
-    # STREAMING COMMIT ANALYSIS — Real-time SSE events
+    # STREAMING COMMIT ANALYSIS — Real-time SSE events + RAG
     # ====================================================================
     async def stream_analysis(self, commit_data: dict[str, Any]) -> AsyncGenerator[dict[str, Any]]:
         """Stream analysis progress as SSE events — yields dict events"""
@@ -173,7 +198,7 @@ class GeminiService:
         yield {"event": "progress", "data": {"step": "fetch", "message": "Fetching code changes...", "progress": 10}}
 
         # Event 2: AST analysis
-        yield {"event": "progress", "data": {"step": "ast", "message": "Parsing code structure (AST analysis)...", "progress": 25}}
+        yield {"event": "progress", "data": {"step": "ast", "message": "Parsing code structure (AST analysis)...", "progress": 20}}
         ast_analyses = []
         files_for_analysis = []
         for file in commit_data.get('files', []):
@@ -185,15 +210,15 @@ class GeminiService:
                 files_for_analysis.append({'filename': filename, 'content': patch_content})
 
         # Event 3: Security scan
-        yield {"event": "progress", "data": {"step": "security", "message": "Running security vulnerability scan...", "progress": 40}}
+        yield {"event": "progress", "data": {"step": "security", "message": "Running security vulnerability scan...", "progress": 35}}
         security_analysis = security_scanner.scan_multiple_files(files_for_analysis)
 
         # Event 4: Dependency analysis
-        yield {"event": "progress", "data": {"step": "dependency", "message": "Analyzing cross-file dependencies...", "progress": 55}}
+        yield {"event": "progress", "data": {"step": "dependency", "message": "Analyzing cross-file dependencies...", "progress": 45}}
         dependency_analysis = dependency_analyzer.analyze_dependencies(files_for_analysis)
 
         # Event 5: Performance analysis
-        yield {"event": "progress", "data": {"step": "performance", "message": "Detecting performance anti-patterns...", "progress": 65}}
+        yield {"event": "progress", "data": {"step": "performance", "message": "Detecting performance anti-patterns...", "progress": 55}}
         performance_analysis = performance_analyzer.analyze_performance(files_for_analysis)
 
         static_results = {
@@ -203,42 +228,57 @@ class GeminiService:
             "performance_analysis": performance_analysis,
         }
 
-        # Event 6: AI analysis (the big one)
-        yield {"event": "progress", "data": {"step": "ai", "message": "Gemini AI is analyzing your code...", "progress": 75}}
+        # Event 6: RAG retrieval (searching AI memory)
+        yield {"event": "progress", "data": {"step": "rag", "message": "Searching past analyses for patterns...", "progress": 65}}
+        rag_context = self._get_rag_context(commit_data)
+
+        # Event 7: AI analysis (the big one)
+        yield {"event": "progress", "data": {"step": "ai", "message": "Gemini AI is analyzing your code (with historical context)...", "progress": 75}}
 
         try:
-            prompt = self._build_commit_prompt(commit_data, static_results)
+            prompt = self._build_commit_prompt(commit_data, static_results, rag_context)
             response = self.model.generate_content(prompt)
             ai_result = json.loads(response.text)
 
-            # Event 7: Building result
+            # Event 8: Building result
             yield {"event": "progress", "data": {"step": "building", "message": "Building analysis report...", "progress": 90}}
 
             final_result = self._build_commit_result(ai_result, commit_data, static_results)
 
-            # Event 8: Complete — send final result
+            # Auto-store in RAG for future reference
+            self._store_in_rag(final_result)
+
+            # Event 9: Complete — send final result
             yield {"event": "complete", "data": {"result": final_result, "progress": 100, "message": "Analysis complete!"}}
 
         except Exception as e:
             yield {"event": "error", "data": {"message": f"AI analysis failed: {str(e)}", "progress": 0}}
 
     # ====================================================================
-    # STREAMING PR ANALYSIS — Real-time SSE events
+    # STREAMING PR ANALYSIS — Real-time SSE events + RAG
     # ====================================================================
     async def stream_pr_analysis(self, pr_data: dict[str, Any]) -> AsyncGenerator[dict[str, Any]]:
         """Stream PR analysis progress as SSE events"""
 
         yield {"event": "progress", "data": {"step": "fetch", "message": "Fetching PR changes...", "progress": 15}}
-        yield {"event": "progress", "data": {"step": "ai", "message": "Gemini AI is reviewing your pull request...", "progress": 50}}
+
+        # RAG retrieval for PR
+        yield {"event": "progress", "data": {"step": "rag", "message": "Searching past analyses for patterns...", "progress": 35}}
+        rag_context = self._get_rag_context_for_pr(pr_data)
+
+        yield {"event": "progress", "data": {"step": "ai", "message": "Gemini AI is reviewing your pull request (with historical context)...", "progress": 55}}
 
         try:
-            prompt = self._build_pr_prompt(pr_data)
+            prompt = self._build_pr_prompt(pr_data, rag_context)
             response = self.model.generate_content(prompt)
             ai_result = json.loads(response.text)
 
             yield {"event": "progress", "data": {"step": "building", "message": "Building PR review report...", "progress": 85}}
 
             final_result = self._build_pr_result(ai_result, pr_data)
+
+            # Auto-store in RAG
+            self._store_in_rag(final_result)
 
             yield {"event": "complete", "data": {"result": final_result, "progress": 100, "message": "PR analysis complete!"}}
 
@@ -248,8 +288,8 @@ class GeminiService:
     # ====================================================================
     # PROMPT BUILDERS
     # ====================================================================
-    def _build_commit_prompt(self, commit_data: dict[str, Any], static_results: dict[str, Any]) -> str:
-        """Build prompt for commit analysis with static analysis context"""
+    def _build_commit_prompt(self, commit_data: dict[str, Any], static_results: dict[str, Any], rag_context: str = "") -> str:
+        """Build prompt for commit analysis with static analysis + RAG context"""
         ast_analyses = static_results["ast_analyses"]
 
         # Build file summaries with AST insights
@@ -282,6 +322,17 @@ class GeminiService:
         dep = static_results["dependency_analysis"]
         dep_summary = f"Dependencies: complexity {dep.get('complexity_score', 0)}/100, {len(dep.get('dependency_risks', []))} risks"
 
+        # RAG section (only included if past analyses exist)
+        rag_section = ""
+        if rag_context:
+            rag_section = f"""
+{rag_context}
+IMPORTANT: Use the past analysis history above to:
+- Identify recurring issues (e.g., "this is the Nth time this pattern was flagged")
+- Track trends (e.g., "maintainability has improved/degraded over recent commits")
+- Reference specific past commits if the same file or pattern was reviewed before
+"""
+
         return f"""You are an expert code reviewer. Analyze these code changes and return a JSON response.
 
 COMMIT: {commit_data['sha'][:12]} by {commit_data['author']}
@@ -295,7 +346,7 @@ STATIC ANALYSIS RESULTS:
 
 FILES CHANGED:
 {chr(10).join(files_info)}
-
+{rag_section}
 Return your analysis as JSON matching this EXACT schema:
 {COMMIT_ANALYSIS_SCHEMA}
 
@@ -309,8 +360,8 @@ SCORING RULES:
 
 Be thorough, technical, and precise. Return ONLY valid JSON."""
 
-    def _build_pr_prompt(self, pr_data: dict[str, Any]) -> str:
-        """Build prompt for PR analysis"""
+    def _build_pr_prompt(self, pr_data: dict[str, Any], rag_context: str = "") -> str:
+        """Build prompt for PR analysis with optional RAG context"""
 
         files_info = []
         for file in pr_data.get('files', [])[:20]:
@@ -318,6 +369,14 @@ Be thorough, technical, and precise. Return ONLY valid JSON."""
             if file.get('patch') and len(file['patch']) < 1000:
                 file_summary += f"\n  Diff:\n{file['patch'][:600]}"
             files_info.append(file_summary)
+
+        # RAG section (only included if past analyses exist)
+        rag_section = ""
+        if rag_context:
+            rag_section = f"""
+{rag_context}
+IMPORTANT: Use the past analysis history above to identify recurring patterns and trends.
+"""
 
         return f"""You are a senior software architect reviewing a pull request. Return a JSON response.
 
@@ -331,7 +390,7 @@ Description:
 
 FILES CHANGED:
 {chr(10).join(files_info)}
-
+{rag_section}
 Return your analysis as JSON matching this EXACT schema:
 {PR_ANALYSIS_SCHEMA}
 
@@ -417,6 +476,67 @@ Be thorough, technical, and precise. Return ONLY valid JSON."""
             "pr_title": pr_data['title'],
             "author": pr_data['author'],
         }
+
+    # ====================================================================
+    # RAG INTEGRATION — Retrieve past analyses to augment prompts
+    # ====================================================================
+    def _get_rag_context(self, commit_data: dict[str, Any]) -> str:
+        """Retrieve relevant past analyses for a commit from the RAG knowledge base.
+
+        Builds a search query from the commit data and retrieves similar
+        past reviews. Returns the RAG context string (or empty if none found).
+        """
+        try:
+            from app.analysis.rag_service import rag_service
+
+            # Build search query from commit info
+            search_text = f"{commit_data.get('message', '')} "
+            for file in commit_data.get('files', [])[:5]:
+                search_text += f"{file.get('filename', '')} "
+
+            rag_result = rag_service.get_rag_context(
+                current_analysis_text=search_text.strip(),
+                top_k=3
+            )
+            return rag_result.get("context", "")
+        except Exception:
+            # RAG is optional — if it fails, continue without it
+            return ""
+
+    def _get_rag_context_for_pr(self, pr_data: dict[str, Any]) -> str:
+        """Retrieve relevant past analyses for a PR from the RAG knowledge base."""
+        try:
+            from app.analysis.rag_service import rag_service
+
+            # Build search query from PR info
+            search_text = f"{pr_data.get('title', '')} {pr_data.get('description', '')[:200]} "
+            for file in pr_data.get('files', [])[:5]:
+                search_text += f"{file.get('filename', '')} "
+
+            rag_result = rag_service.get_rag_context(
+                current_analysis_text=search_text.strip(),
+                top_k=3
+            )
+            return rag_result.get("context", "")
+        except Exception:
+            return ""
+
+    def _store_in_rag(self, analysis_result: dict[str, Any]) -> None:
+        """Auto-store a completed analysis in the RAG knowledge base.
+
+        This runs after every analysis so the AI builds up memory
+        over time. Failures are silently ignored (RAG is optional).
+        """
+        try:
+            from app.analysis.rag_service import rag_service
+
+            rag_service.store_analysis(
+                analysis_data=analysis_result,
+                repository_name=analysis_result.get("repository_name"),
+            )
+        except Exception:
+            # RAG storage is best-effort — don't break analysis if it fails
+            pass
 
 
 # Create global instance

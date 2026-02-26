@@ -22,6 +22,9 @@ venv/
 .DS_Store
 Thumbs.db
 
+# RAG vector database (ChromaDB persistent storage)
+chroma_data/
+
 # Node (frontend)
 node_modules/
 .next/

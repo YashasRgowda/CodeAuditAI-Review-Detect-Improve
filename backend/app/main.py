@@ -8,7 +8,7 @@
 #   4. Registers all route groups:
 #      - /auth/*       → GitHub OAuth authentication
 #      - /repos/*      → Repository & commit management
-#      - /analysis/*   → AI-powered code analysis + conversational AI chat
+#      - /analysis/*   → AI-powered code analysis + AI chat + RAG memory
 #      - /webhooks/*   → GitHub webhook listener
 #   5. Provides health check endpoints (/ and /health)
 #
@@ -35,8 +35,8 @@ pr_analysis.Base.metadata.create_all(bind=engine)
 # Create FastAPI app
 app = FastAPI(
     title="AI Code Review Assistant",
-    description="AI-powered code review and analysis platform with multi-turn conversational AI review",
-    version="2.0.0"
+    description="AI-powered code review and analysis platform with conversational AI review and RAG memory",
+    version="3.0.0"
 )
 
 # Add CORS middleware
@@ -70,6 +70,7 @@ app.add_middleware(RateLimitMiddleware, calls_per_hour=1000)
 
 # Import and include routers (must be after app creation to avoid circular imports)
 from app.analysis.chat_routes import router as chat_router  # noqa: E402
+from app.analysis.rag_routes import router as rag_router  # noqa: E402
 from app.analysis.routes import router as analysis_router  # noqa: E402
 from app.auth.routes import router as auth_router  # noqa: E402
 from app.repositories.routes import router as repo_router  # noqa: E402
@@ -78,6 +79,7 @@ app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(repo_router, prefix="/repos", tags=["repositories"])
 app.include_router(analysis_router, prefix="/analysis", tags=["analysis"])
 app.include_router(chat_router, prefix="/analysis", tags=["ai-chat"])
+app.include_router(rag_router, prefix="/analysis", tags=["rag-memory"])
 
 app.include_router(webhook_router, prefix="/webhooks", tags=["webhooks"])
 
