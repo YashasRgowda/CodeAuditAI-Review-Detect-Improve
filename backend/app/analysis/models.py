@@ -53,6 +53,18 @@ class AnalysisResponse(BaseModel):
         from_attributes = True
 
 
+class FixableIssue(BaseModel):
+    """An issue found during analysis with a fixable flag.
+
+    If fixable=True, the user can request an AI-generated code fix
+    via POST /analysis/auto-fix.
+    """
+    description: str = ""
+    fixable: bool = False
+    issue_type: str = "quality"  # security | performance | architecture | quality
+    severity: str = "medium"  # low | medium | high
+
+
 class QuickAnalysisResponse(BaseModel):
     summary: str
     risk_level: str
@@ -63,13 +75,14 @@ class QuickAnalysisResponse(BaseModel):
     commit_hash: str
     commit_message: str
     author: str
-    recommendations: list[str] = []
+    recommendations: list[FixableIssue] = []
     impact_areas: list[str] = []
     security_concerns: list[str] = []
     maintainability_score: int = 70
     security_score: int = 100
     performance_score: int = 100
     overall_score: int = 7
+    autofix_available: bool = True  # Tells the user they can request fixes
 
 
 class DetailedAnalysisResponse(BaseModel):

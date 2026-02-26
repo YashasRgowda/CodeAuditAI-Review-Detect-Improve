@@ -34,6 +34,7 @@ from app.analysis.models import (
     AnalysisRequest,
     AnalysisResponse,
     DetailedAnalysisResponse,
+    FixableIssue,
     QuickAnalysisResponse,
     StreamAnalysisRequest,
 )
@@ -147,6 +148,25 @@ async def quick_analysis(request: AnalysisRequest, db: Session = Depends(get_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
 
+    # Build FixableIssue objects from AI recommendations
+    raw_recs = analysis_result.get("recommendations", [])
+    fixable_issues = []
+    for rec in raw_recs:
+        if isinstance(rec, dict):
+            fixable_issues.append(FixableIssue(
+                description=rec.get("description", str(rec)),
+                fixable=rec.get("fixable", False),
+                issue_type=rec.get("issue_type", "quality"),
+                severity=rec.get("severity", "medium"),
+            ))
+        elif isinstance(rec, str):
+            fixable_issues.append(FixableIssue(
+                description=rec,
+                fixable=True,
+                issue_type="quality",
+                severity="medium",
+            ))
+
     return QuickAnalysisResponse(
         summary=analysis_result["summary"],
         risk_level=analysis_result["risk_level"],
@@ -157,13 +177,14 @@ async def quick_analysis(request: AnalysisRequest, db: Session = Depends(get_db)
         commit_hash=analysis_result["commit_hash"],
         commit_message=analysis_result["commit_message"],
         author=analysis_result["author"],
-        recommendations=analysis_result.get("recommendations", []),
+        recommendations=fixable_issues,
         impact_areas=analysis_result.get("impact_areas", []),
         security_concerns=analysis_result.get("security_concerns", []),
         maintainability_score=analysis_result.get("maintainability_score", 70),
         security_score=analysis_result.get("security_score", 100),
         performance_score=analysis_result.get("performance_score", 100),
         overall_score=analysis_result.get("overall_score", 7),
+        autofix_available=True,
     )
 
 

@@ -45,7 +45,14 @@ COMMIT_ANALYSIS_SCHEMA = """{
   "impact_areas": ["area1", "area2"],
   "code_quality_assessment": "detailed assessment of code quality",
   "security_concerns": ["concern1", "concern2"],
-  "recommendations": ["recommendation1", "recommendation2", "recommendation3"],
+  "recommendations": [
+    {
+      "description": "specific actionable recommendation",
+      "fixable": true,
+      "issue_type": "security | performance | architecture | quality",
+      "severity": "low | medium | high"
+    }
+  ],
   "maintainability_score": 85,
   "security_score": 90,
   "performance_score": 80,
@@ -356,7 +363,11 @@ SCORING RULES:
 - performance_score: 0-100 (100=optimal, deduct for anti-patterns)
 - overall_score: 1-10 (holistic quality rating)
 - risk_level: "low" for safe changes, "medium" for moderate risk, "high" for dangerous changes
-- recommendations: provide 3-5 specific, actionable suggestions
+- recommendations: provide 3-5 specific, actionable suggestions as objects with:
+  - description: the recommendation text
+  - fixable: true if AI can generate an actual code fix, false if it needs human decision
+  - issue_type: "security" | "performance" | "architecture" | "quality"
+  - severity: "low" | "medium" | "high"
 
 Be thorough, technical, and precise. Return ONLY valid JSON."""
 
