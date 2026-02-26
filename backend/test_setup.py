@@ -21,12 +21,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
 def test_imports():
     """Test all imports work"""
     try:
-        from app.config import settings
-        from app.database import Base, engine, test_connection
+        from app.core.config import settings
+        from app.core.database import Base, engine
+        from app.core.redis import test_redis_connection
         from app.models.analysis import Analysis
         from app.models.repository import Repository
         from app.models.user import User
-        from app.redis_client import test_redis_connection
 
         print("✅ All imports successful!")
         return True
@@ -37,7 +37,7 @@ def test_imports():
 def test_settings():
     """Test settings load"""
     try:
-        from app.config import settings
+        from app.core.config import settings
         print("✅ Settings loaded!")
         print(f"  - Database URL: {settings.DATABASE_URL[:50]}...")
         print(f"  - Redis URL: {settings.REDIS_URL}")
@@ -50,7 +50,7 @@ def test_settings():
 def create_database():
     """Create database tables"""
     try:
-        from app.database import Base, engine
+        from app.core.database import Base, engine
         from app.models import analysis, repository, user
 
         # Create all tables
@@ -73,11 +73,11 @@ if __name__ == "__main__":
     success &= test_settings()
 
     # Test database connection
-    from app.database import test_connection
+    from app.core.database import test_connection
     success &= test_connection()
 
     # Test Redis connection
-    from app.redis_client import test_redis_connection
+    from app.core.redis import test_redis_connection
     success &= test_redis_connection()
 
     # Create database tables

@@ -8,7 +8,8 @@
 #   4. Registers all route groups:
 #      - /auth/*       → GitHub OAuth authentication
 #      - /repos/*      → Repository & commit management
-#      - /analysis/*   → AI-powered code analysis + multi-agent + AI chat + RAG memory + auto-fix
+#      - /analysis/*   → AI-powered code analysis (single + multi-agent)
+#      - /analysis/*   → AI chat, RAG memory, auto-fix
 #      - /webhooks/*   → GitHub webhook listener
 #   5. Provides health check endpoints (/ and /health)
 #
@@ -19,13 +20,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings
-from app.database import engine
+from app.core.config import settings
+from app.core.database import engine
 from app.middleware.rate_limiter import RateLimitMiddleware
 from app.models import analysis, pr_analysis, pull_request, repository, user  # noqa: F401
 from app.webhooks.github_webhooks import router as webhook_router
 
-# Create all database tables (order matters — pull_requests must exist before pr_analysis_results)
+# Create all database tables (order matters — pull_requests before pr_analysis_results)
 user.Base.metadata.create_all(bind=engine)
 repository.Base.metadata.create_all(bind=engine)
 pull_request.Base.metadata.create_all(bind=engine)
@@ -48,6 +49,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 async def root():
     """Health check endpoint"""
@@ -56,6 +58,7 @@ async def root():
         "version": "5.0.0",
         "status": "running"
     }
+
 
 @app.get("/health")
 async def health_check():
@@ -66,16 +69,17 @@ async def health_check():
         "redis": "connected"
     }
 
+
 app.add_middleware(RateLimitMiddleware, calls_per_hour=1000)
 
 # Import and include routers (must be after app creation to avoid circular imports)
-from app.analysis.agents.agent_routes import router as agent_router  # noqa: E402
-from app.analysis.autofix.autofix_routes import router as autofix_router  # noqa: E402
-from app.analysis.chat_routes import router as chat_router  # noqa: E402
-from app.analysis.rag_routes import router as rag_router  # noqa: E402
-from app.analysis.routes import router as analysis_router  # noqa: E402
-from app.auth.routes import router as auth_router  # noqa: E402
-from app.repositories.routes import router as repo_router  # noqa: E402
+from app.routes.agents import router as agent_router  # noqa: E402
+from app.routes.analysis import router as analysis_router  # noqa: E402
+from app.routes.auth import router as auth_router  # noqa: E402
+from app.routes.autofix import router as autofix_router  # noqa: E402
+from app.routes.chat import router as chat_router  # noqa: E402
+from app.routes.rag import router as rag_router  # noqa: E402
+from app.routes.repositories import router as repo_router  # noqa: E402
 
 app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(repo_router, prefix="/repos", tags=["repositories"])

@@ -124,7 +124,7 @@ jobs:
         run: |
           cd backend
           python -c "
-          from app.database import engine
+          from app.core.database import engine
           from sqlalchemy import inspect
           inspector = inspect(engine)
           tables = inspector.get_table_names()
