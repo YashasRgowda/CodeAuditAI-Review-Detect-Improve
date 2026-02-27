@@ -1,109 +1,172 @@
-// File: src/components/layout/Sidebar.js - FIXED
 'use client';
+// Sidebar.js — Collapsible dark sidebar inspired by Linear + Raycast
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  LayoutDashboard, FolderGit2, BarChart3, MessageSquare,
+  Bot, Wrench, Brain, Settings, ChevronLeft, ChevronRight,
+  Sparkles, LogOut, GitBranch,
+} from 'lucide-react';
+import { signOut, useSession } from 'next-auth/react';
 
-const navItems = [
-  { 
-    href: '/', 
-    label: 'Dashboard',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    )
-  },
-  { 
-    href: '/repositories', 
-    label: 'Repositories',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-      </svg>
-    )
-  },
-  { 
-    href: '/analysis', 
-    label: 'Analysis',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    )
-  },
-  { 
-    href: '/analysis/quick', 
-    label: 'Quick Analysis',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-      </svg>
-    )
-  },
+const mainNav = [
+  { href: '/',             label: 'Dashboard',     icon: LayoutDashboard, exact: true },
+  { href: '/repositories', label: 'Repositories',  icon: FolderGit2 },
+  { href: '/analysis',     label: 'Analysis',      icon: BarChart3 },
 ];
 
-export default function Sidebar({ isOpen, isCollapsed, onToggleCollapse }) {
-  const pathname = usePathname();
+const aiNav = [
+  { href: '/chat',      label: 'AI Chat',       icon: MessageSquare },
+  { href: '/agents',    label: 'Multi-Agent',   icon: Bot },
+  { href: '/autofix',   label: 'Auto-Fix',      icon: Wrench },
+  { href: '/knowledge', label: 'Knowledge',     icon: Brain },
+];
 
-  const isActive = (href) => {
-    // Exact match for home page
-    if (href === '/') return pathname === '/';
-    
-    // For nested routes, check exact match first
-    if (href === '/analysis/quick') return pathname === '/analysis/quick';
-    if (href === '/analysis') return pathname === '/analysis';
-    
-    // For other routes, use startsWith
-    return pathname.startsWith(href);
-  };
+const bottomNav = [
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
+
+function NavItem({ item, collapsed, pathname }) {
+  const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+  const Icon = item.icon;
 
   return (
-    <aside className={`fixed lg:sticky top-[73px] left-0 h-[calc(100vh-73px)] z-30 bg-black/40 border-r border-white/5 backdrop-blur-xl transform transition-all duration-300 ${
-      isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-    } ${isCollapsed ? 'lg:w-20' : 'lg:w-64'}`}>
-      
-      {/* Collapse Toggle Button - Desktop Only */}
-      <button 
-        onClick={onToggleCollapse}
-        className="hidden lg:flex absolute -right-3 top-6 w-6 h-6 bg-[#161616] border border-white/10 rounded-full items-center justify-center hover:bg-white/5 transition-all duration-200 group z-50"
+    <Link href={item.href}>
+      <motion.div
+        className={`
+          relative flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer
+          transition-all duration-200 group
+          ${isActive
+            ? 'bg-violet-600/15 text-white border-l-2 border-violet-500 pl-[10px]'
+            : 'text-white/45 hover:text-white/80 hover:bg-white/5'
+          }
+        `}
+        whileHover={{ x: isActive ? 0 : 2 }}
+        transition={{ duration: 0.15 }}
       >
-        <svg className={`w-3 h-3 text-white/60 group-hover:text-white transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-
-      {/* Navigation Links */}
-      <nav className="p-4 space-y-2">
-        {navItems.map((item) => {
-          const active = isActive(item.href);
-          
-          return (
-            <Link 
-              key={item.href} 
-              href={item.href} 
-              className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl overflow-hidden transition-all duration-200 ${
-                active ? 'bg-gradient-to-r from-violet-600/20 to-indigo-600/20' : ''
-              }`}
+        <Icon size={16} className={isActive ? 'text-violet-400' : 'text-white/40 group-hover:text-white/60'} />
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.span
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              exit={{ opacity: 0, width: 0 }}
+              transition={{ duration: 0.2 }}
+              className="text-sm font-medium whitespace-nowrap overflow-hidden"
             >
-              <div className={`absolute inset-0 bg-gradient-to-r from-violet-600 to-indigo-600 transition-opacity duration-200 ${
-                active ? 'opacity-0 group-hover:opacity-10' : 'opacity-0 group-hover:opacity-10'
-              }`}></div>
-              
-              <div className={`relative z-10 shrink-0 transition-colors duration-200 ${
-                active ? 'text-violet-400' : 'text-white/40 group-hover:text-white/80'
-              }`}>
-                {item.icon}
-              </div>
-              
-              <span className={`font-medium transition-all duration-300 relative z-10 ${
-                active ? 'text-white' : 'text-white/60 group-hover:text-white'
-              } ${isCollapsed ? 'lg:opacity-0 lg:w-0' : 'opacity-100'}`}>
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+              {item.label}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </Link>
+  );
+}
+
+export default function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
+  const { data: session } = useSession();
+
+  return (
+    <motion.aside
+      animate={{ width: collapsed ? 60 : 220 }}
+      transition={{ duration: 0.25, ease: 'easeInOut' }}
+      className="relative flex flex-col h-screen bg-[#0c0c0c] border-r border-white/6 shrink-0 overflow-hidden"
+    >
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-3 h-14 border-b border-white/6 shrink-0">
+        <div className="w-7 h-7 rounded-lg bg-violet-600/20 border border-violet-500/30 flex items-center justify-center shrink-0">
+          <GitBranch size={14} className="text-violet-400" />
+        </div>
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="overflow-hidden"
+            >
+              <span className="text-sm font-bold gradient-text whitespace-nowrap">CodeAuditAI</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Nav content */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-1">
+        {/* Main nav */}
+        <div className="space-y-0.5">
+          {mainNav.map(item => (
+            <NavItem key={item.href} item={item} collapsed={collapsed} pathname={pathname} />
+          ))}
+        </div>
+
+        {/* AI Features section */}
+        <div className="pt-3">
+          {!collapsed && (
+            <div className="flex items-center gap-1.5 px-3 mb-1.5">
+              <Sparkles size={10} className="text-cyan-400/60" />
+              <span className="text-[10px] font-semibold text-white/25 uppercase tracking-widest">AI Features</span>
+            </div>
+          )}
+          {collapsed && <div className="h-px bg-white/6 mx-2 mb-2" />}
+          <div className="space-y-0.5">
+            {aiNav.map(item => (
+              <NavItem key={item.href} item={item} collapsed={collapsed} pathname={pathname} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom section */}
+      <div className="border-t border-white/6 p-2 space-y-1">
+        {bottomNav.map(item => (
+          <NavItem key={item.href} item={item} collapsed={collapsed} pathname={pathname} />
+        ))}
+
+        {/* User profile */}
+        {session?.user && (
+          <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg mt-1 ${collapsed ? 'justify-center' : ''}`}>
+            <img
+              src={session.user.image || `https://avatars.githubusercontent.com/${session.user.name}`}
+              alt={session.user.name}
+              className="w-6 h-6 rounded-full shrink-0 border border-white/10"
+            />
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex-1 min-w-0"
+                >
+                  <p className="text-xs font-medium text-white/70 truncate">{session.user.name}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {!collapsed && (
+              <button
+                onClick={() => signOut({ callbackUrl: '/auth' })}
+                className="text-white/25 hover:text-red-400 transition-colors cursor-pointer"
+              >
+                <LogOut size={13} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="absolute -right-3 top-14 w-6 h-6 rounded-full bg-[#1a1a1a] border border-white/10 flex items-center justify-center text-white/40 hover:text-white/80 hover:border-white/25 transition-all duration-200 z-10 cursor-pointer"
+      >
+        {collapsed ? <ChevronRight size={11} /> : <ChevronLeft size={11} />}
+      </button>
+    </motion.aside>
   );
 }

@@ -1,33 +1,19 @@
-// File: src/components/layout/DashboardLayout.js
 'use client';
-import { useState } from 'react';
-import Header from './Header';
+// DashboardLayout.js — Main authenticated layout (Sidebar + Header + content area)
+// Uses 'use client' only to render Sidebar/Header; children are server-rendered.
 import Sidebar from './Sidebar';
-import MobileOverlay from './MobileOverlay';
+import Header from './Header';
 
 export default function DashboardLayout({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
-  const toggleCollapse = () => setSidebarCollapsed(!sidebarCollapsed);
-  const closeSidebar = () => setSidebarOpen(false);
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
-      <Header onToggleSidebar={toggleSidebar} />
-      
-      <div className="flex">
-        <Sidebar 
-          isOpen={sidebarOpen} 
-          isCollapsed={sidebarCollapsed} 
-          onToggleCollapse={toggleCollapse}
-        />
-        
-        <MobileOverlay isOpen={sidebarOpen} onClose={closeSidebar} />
-        
-        <main className="flex-1 p-6 lg:p-8">
-          {children}
+    <div className="flex h-screen overflow-hidden bg-[#080808]">
+      <Sidebar />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="page-enter">
+            {children}
+          </div>
         </main>
       </div>
     </div>

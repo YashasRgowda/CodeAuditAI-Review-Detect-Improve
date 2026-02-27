@@ -1,78 +1,85 @@
-// File: src/app/settings/page.js
 'use client';
-import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import Header from '@/components/layout/Header';
-import Navigation from '@/components/layout/Navigation';
-import Card from '@/components/ui/Card';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { Providers } from '@/components/providers/Providers';
+// settings/page.js — User settings and account management
+import { useSession, signOut } from 'next-auth/react';
+import { motion } from 'framer-motion';
+import { User, Key, Bell, LogOut, Github, Shield } from 'lucide-react';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
 
-function SettingsPage() {
-  const { isAuthenticated, loading, user } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/auth');
-    }
-  }, [isAuthenticated, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) return null;
+export default function SettingsPage() {
+  const { data: session } = useSession();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      <div className="flex">
-        <Navigation />
-        <main className="flex-1 p-8">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-3xl font-bold mb-8">Settings</h1>
-            
-            <div className="space-y-6">
-              <Card>
-                <h2 className="text-xl font-bold mb-4">Account Information</h2>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Name</label>
-                    <div className="text-gray-900">{user?.name || 'N/A'}</div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">Email</label>
-                    <div className="text-gray-900">{user?.email || 'N/A'}</div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600">GitHub Username</label>
-                    <div className="text-gray-900">@{user?.name || 'N/A'}</div>
-                  </div>
+    <DashboardLayout>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-xl font-bold text-white mb-1">Settings</h1>
+          <p className="text-sm text-white/35">Manage your account and preferences</p>
+        </div>
+
+        {/* Profile card */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
+          <h2 className="text-sm font-semibold text-white/70 flex items-center gap-2 mb-5">
+            <User size={15} /> Profile
+          </h2>
+          {session?.user && (
+            <div className="flex items-center gap-4">
+              <img
+                src={session.user.image}
+                alt={session.user.name}
+                className="w-16 h-16 rounded-2xl border border-white/10"
+              />
+              <div>
+                <p className="font-semibold text-white">{session.user.name}</p>
+                <p className="text-sm text-white/40">{session.user.email}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="violet">
+                    <Github size={11} className="mr-1" />
+                    GitHub Connected
+                  </Badge>
                 </div>
-              </Card>
-
-              <Card>
-                <h2 className="text-xl font-bold mb-4">Preferences</h2>
-                <p className="text-gray-600">Settings and preferences will be available in future updates.</p>
-              </Card>
+              </div>
             </div>
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-}
+          )}
+        </motion.div>
 
-export default function SettingsPageWithProviders() {
-  return (
-    <Providers>
-      <SettingsPage />
-    </Providers>
+        {/* AI Features status */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+          <h2 className="text-sm font-semibold text-white/70 flex items-center gap-2 mb-5">
+            <Shield size={15} /> AI Features Status
+          </h2>
+          <div className="space-y-3">
+            {[
+              { label: 'Streaming Analysis',         status: 'active' },
+              { label: 'Multi-Agent (3 Agents)',      status: 'active' },
+              { label: 'Conversational AI Chat',      status: 'active' },
+              { label: 'RAG Knowledge Base',          status: 'active' },
+              { label: 'Auto-Fix Generation',         status: 'active' },
+            ].map(feat => (
+              <div key={feat.label} className="flex items-center justify-between py-2 border-b border-white/4 last:border-0">
+                <span className="text-sm text-white/60">{feat.label}</span>
+                <Badge variant="emerald" dot>Active</Badge>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Danger zone */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-6 border-red-500/15">
+          <h2 className="text-sm font-semibold text-red-400 flex items-center gap-2 mb-4">
+            <LogOut size={15} /> Sign Out
+          </h2>
+          <p className="text-xs text-white/35 mb-4">You will be redirected to the login page.</p>
+          <Button
+            variant="danger"
+            icon={LogOut}
+            onClick={() => signOut({ callbackUrl: '/auth' })}
+          >
+            Sign Out
+          </Button>
+        </motion.div>
+      </div>
+    </DashboardLayout>
   );
 }

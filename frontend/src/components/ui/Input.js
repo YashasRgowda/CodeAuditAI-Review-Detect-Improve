@@ -1,29 +1,39 @@
-// File: src/components/ui/Input.js
-export default function Input({ 
-  label, 
-  type = 'text', 
-  placeholder, 
-  value, 
-  onChange, 
+'use client';
+// Input.js — Styled input with icon support and dark theme
+
+export default function Input({
+  label,
+  icon: Icon,
+  error,
   className = '',
-  required = false 
+  containerClassName = '',
+  ...props
 }) {
   return (
-    <div className="space-y-2">
+    <div className={`flex flex-col gap-1.5 ${containerClassName}`}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="text-xs font-medium text-white/50 uppercase tracking-wider">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        required={required}
-        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent ${className}`}
-      />
+      <div className="relative">
+        {Icon && (
+          <Icon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+        )}
+        <input
+          className={`
+            w-full bg-white/4 border border-white/8 rounded-lg
+            text-sm text-white/90 placeholder:text-white/25
+            focus:outline-none focus:border-violet-500/50 focus:bg-white/5
+            transition-all duration-200
+            ${Icon ? 'pl-9 pr-4 py-2.5' : 'px-4 py-2.5'}
+            ${error ? 'border-red-500/50' : ''}
+            ${className}
+          `}
+          {...props}
+        />
+      </div>
+      {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );
 }

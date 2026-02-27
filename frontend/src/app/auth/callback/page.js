@@ -1,11 +1,11 @@
-// File: src/app/auth/callback/page.js - REPLACE ENTIRE FILE
 'use client';
-import { useEffect } from 'react';
+// auth/callback/page.js — GitHub OAuth callback handler
+// useSearchParams must be wrapped in Suspense (Next.js 15 requirement)
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { setToken } from '@/lib/auth';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
-export default function CallbackPage() {
+function CallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -20,25 +20,22 @@ export default function CallbackPage() {
       }
 
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/github/callback`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, state })
-        });
-
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/github/callback`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, state }),
+          }
+        );
         const data = await response.json();
-        console.log('Callback response:', data); // Debug log
-        
         if (data.access_token) {
           setToken(data.access_token);
-          // Force page reload to update auth state
           window.location.href = '/';
         } else {
-          console.error('No access token in response:', data);
           router.push('/auth?error=token_failed');
         }
-      } catch (error) {
-        console.error('Callback error:', error);
+      } catch {
         router.push('/auth?error=callback_failed');
       }
     };
@@ -47,11 +44,23 @@ export default function CallbackPage() {
   }, [router, searchParams]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <LoadingSpinner size="lg" />
-        <p className="mt-4 text-gray-600">Completing sign in...</p>
+    <div className="min-h-screen flex items-center justify-center bg-[#080808]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+        <p className="text-sm text-white/40">Completing sign in...</p>
       </div>
     </div>
+  );
+}
+
+export default function CallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#080808]">
+        <div className="w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+      </div>
+    }>
+      <CallbackInner />
+    </Suspense>
   );
 }
