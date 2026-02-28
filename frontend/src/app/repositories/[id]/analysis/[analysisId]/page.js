@@ -1,212 +1,377 @@
-// File: src/app/repositories/[id]/analysis/[analysisId]/page.js - REFACTORED
 'use client';
+// repositories/[id]/analysis/[analysisId]/page.js — Analysis Detail View
+// Royal Wine theme · Score gauges · AI report · Commit info · Auto-fix CTA
+
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useRouter, useParams } from 'next/navigation';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import RiskLevelBadge from '@/components/analysis/RiskLevelBadge';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
-import { api } from '@/lib/api';
-import { formatDate } from '@/lib/utils';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import ScoreGauge from '@/components/ui/ScoreGauge';
+import { analysisApi } from '@/lib/api/analysis';
+import {
+  ArrowLeft, GitCommit, FileCode, Calendar, User,
+  Shield, AlertTriangle, Wrench, MessageSquare, ChevronRight,
+  Plus, Minus, Hash,
+} from 'lucide-react';
 
-export default function AnalysisDetailsPage() {
-  const { isAuthenticated, loading: authLoading } = useAuth();
-  const router = useRouter();
-  const params = useParams();
-  const { id: repoId, analysisId } = params;
-  const [analysis, setAnalysis] = useState(null);
-  const [loading, setLoading] = useState(true);
+/* ─────────────────────────────────────────
+   Risk badge
+───────────────────────────────────────── */
+const RISK = {
+  low:      { bg: 'rgba(106,171,142,0.12)', border: 'rgba(106,171,142,0.28)', text: '#6aab8e', glow: 'rgba(106,171,142,0.30)' },
+  medium:   { bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.28)',  text: '#f59e0b', glow: 'rgba(245,158,11,0.25)'  },
+  high:     { bg: 'rgba(239,68,68,0.10)',  border: 'rgba(239,68,68,0.28)',   text: '#f87171', glow: 'rgba(239,68,68,0.25)'   },
+  critical: { bg: 'rgba(159,18,57,0.14)',  border: 'rgba(159,18,57,0.32)',   text: 'rgba(220,80,100,0.92)', glow: 'rgba(159,18,57,0.30)' },
+};
+function RiskBadge({ level }) {
+  const r = RISK[level?.toLowerCase()] || { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.10)', text: 'rgba(255,255,255,0.42)', glow: 'transparent' };
+  return (
+    <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider"
+      style={{ background: r.bg, border: `1px solid ${r.border}`, color: r.text, boxShadow: `0 0 10px ${r.glow}` }}>
+      {level}
+    </span>
+  );
+}
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/auth');
-    }
-  }, [isAuthenticated, authLoading, router]);
-
-  useEffect(() => {
-    if (isAuthenticated && analysisId) {
-      loadAnalysis();
-    }
-  }, [isAuthenticated, analysisId]);
-
-  const loadAnalysis = async () => {
-    try {
-      const data = await api.getAnalysis(analysisId);
-      setAnalysis(data);
-    } catch (error) {
-      console.error('Failed to load analysis:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getRiskColor = (level) => {
-    switch (level?.toLowerCase()) {
-      case 'low': return 'from-green-600 to-emerald-600';
-      case 'medium': return 'from-yellow-600 to-orange-600';
-      case 'high': return 'from-red-600 to-pink-600';
-      default: return 'from-gray-600 to-gray-600';
-    }
-  };
-
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <LoadingSpinner size="lg" />
+/* ─────────────────────────────────────────
+   Mini stat tile
+───────────────────────────────────────── */
+function StatTile({ label, value, icon: Icon, accent, mono = false }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl px-4 py-3.5" style={{ background: '#0a0a0a', border: '1px solid #1a1a1a' }}>
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+        style={{ background: accent + '14', border: `1px solid ${accent}22` }}>
+        <Icon size={13} style={{ color: accent }} />
       </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-0.5" style={{ color: 'rgba(255,255,255,0.32)' }}>{label}</p>
+        <p className={`text-[15px] font-black leading-none tabular-nums ${mono ? 'font-mono' : ''}`} style={{ color: 'rgba(255,255,255,0.78)' }}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   Section header
+───────────────────────────────────────── */
+function SectionHeader({ icon: Icon, label, right }) {
+  return (
+    <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid #161616', background: '#0a0a0a' }}>
+      <div className="flex items-center gap-2">
+        {Icon && <Icon size={12} style={{ color: 'rgba(159,18,57,0.60)' }} />}
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.16em]" style={{ color: 'rgba(255,255,255,0.38)' }}>{label}</p>
+      </div>
+      {right && <div>{right}</div>}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════
+   PAGE
+═══════════════════════════════════════ */
+export default function AnalysisDetailsPage() {
+  const { status }               = useSession();
+  const router                   = useRouter();
+  const { id: repoId, analysisId } = useParams();
+  const [analysis, setAnalysis]  = useState(null);
+  const [loading,  setLoading]   = useState(true);
+
+  useEffect(() => {
+    if (status === 'unauthenticated') router.push('/auth');
+  }, [status, router]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !analysisId) return;
+    analysisApi.get(analysisId)
+      .then(d => setAnalysis(d))
+      .catch(() => setAnalysis(null))
+      .finally(() => setLoading(false));
+  }, [status, analysisId]);
+
+  if (status === 'loading' || loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="w-6 h-6 rounded-full border-2 animate-spin"
+            style={{ borderColor: 'rgba(159,18,57,0.50)', borderTopColor: 'transparent' }} />
+        </div>
+      </DashboardLayout>
     );
   }
 
-  if (!isAuthenticated || !analysis) return null;
+  if (!analysis) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <p style={{ color: 'rgba(255,255,255,0.40)' }}>Analysis not found</p>
+          <Link href={`/repositories/${repoId}/analysis`}>
+            <button className="text-[12px] cursor-pointer" style={{ color: 'rgba(159,18,57,0.70)' }}>← Back</button>
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const date = analysis.created_at
+    ? new Date(analysis.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+
+  /* ── Scores ── */
+  const overall  = analysis.overall_score > 10 ? analysis.overall_score : (analysis.overall_score || 0) * 10;
+  const security = analysis.security_score        || 0;
+  const maint    = analysis.maintainability_score || 0;
+  const perf     = analysis.performance_score     || 0;
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-4">
-          <Link href={`/repositories/${repoId}/analysis`}>
-            <button className="p-2 hover:bg-white/5 rounded-lg transition-all duration-200">
-              <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-1">Analysis Details</h1>
-            <p className="text-white/50">Commit: {analysis.commit_hash.substring(0, 8)}</p>
+
+      {/* ── Back nav ── */}
+      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28 }} className="mb-6">
+        <Link href={`/repositories/${repoId}/analysis`}>
+          <button className="flex items-center gap-2 text-[12px] font-medium cursor-pointer transition-colors duration-150"
+            style={{ color: 'rgba(255,255,255,0.30)' }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.58)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.30)'; }}>
+            <ArrowLeft size={13} /> Analysis History
+          </button>
+        </Link>
+      </motion.div>
+
+      {/* ══ Hero card — commit identity + risk ══ */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.06, duration: 0.40, ease: [0.16, 1, 0.3, 1] }}
+        className="relative rounded-2xl p-6 mb-5 overflow-hidden"
+        style={{ background: '#0d0d0d', border: '1px solid #1e1212', borderLeft: '3px solid rgba(159,18,57,0.65)' }}
+      >
+        <div className="absolute left-0 top-0 bottom-0 pointer-events-none" style={{ width: 260, background: 'radial-gradient(ellipse at 0% 50%, rgba(159,18,57,0.08) 0%, transparent 70%)' }} />
+        <div className="relative flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: 'rgba(159,18,57,0.10)', border: '1px solid rgba(159,18,57,0.20)' }}>
+              <GitCommit size={16} style={{ color: 'rgba(210,70,90,0.80)' }} />
+            </div>
+            <div>
+              <p className="text-[12px] font-mono mb-0.5" style={{ color: 'rgba(255,255,255,0.40)' }}>
+                {analysis.commit_hash}
+              </p>
+              <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.30)' }}>
+                {analysis.changes_data?.author || analysis.author || 'Unknown author'}
+                {analysis.change_type && ` · ${analysis.change_type}`}
+              </p>
+            </div>
           </div>
+          <RiskBadge level={analysis.risk_level} />
         </div>
 
-        {/* Main Analysis Card */}
-        <div className="group relative">
-          <div className={`absolute -inset-0.5 bg-gradient-to-r ${getRiskColor(analysis.risk_level)} rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-300`}></div>
-          <div className="relative bg-[#161616] border border-white/10 rounded-2xl p-8">
-            
-            {/* Header */}
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                  <RiskLevelBadge riskLevel={analysis.risk_level} />
-                  <span className="text-xs text-white/40">
-                    {formatDate(analysis.created_at)}
-                  </span>
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">{analysis.summary}</h2>
-              </div>
+        {/* Summary */}
+        <p className="relative text-[14px] leading-relaxed mb-5" style={{ color: 'rgba(255,255,255,0.70)' }}>
+          {analysis.summary}
+        </p>
+
+        {/* Diff stats */}
+        <div className="relative flex items-center gap-5 text-[12px]">
+          <span className="flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <FileCode size={12} /> {analysis.files_changed} files changed
+          </span>
+          <span className="flex items-center gap-1" style={{ color: '#6aab8e' }}>
+            <Plus size={11} /> {analysis.lines_added} added
+          </span>
+          <span className="flex items-center gap-1" style={{ color: '#f87171' }}>
+            <Minus size={11} /> {analysis.lines_removed} removed
+          </span>
+          <span className="flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.28)' }}>
+            <Calendar size={11} /> {date}
+          </span>
+        </div>
+      </motion.div>
+
+      {/* ══ Two-column layout ══ */}
+      <div className="flex gap-5">
+
+        {/* ── Left column ── */}
+        <div className="flex-1 min-w-0 space-y-4">
+
+          {/* Score gauges */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-2xl overflow-hidden"
+            style={{ background: '#0d0d0d', border: '1px solid #1c1c1c' }}
+          >
+            <SectionHeader icon={null} label="Quality Scores" />
+            <div className="flex items-center justify-around p-6 flex-wrap gap-6">
+              <ScoreGauge score={overall}  label="Overall" size={90} />
+              <ScoreGauge score={security} label="Security" size={90} />
+              <ScoreGauge score={maint}    label="Maintainability" size={90} />
+              <ScoreGauge score={perf}     label="Performance" size={90} />
             </div>
+          </motion.div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-black/40 border border-white/5 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-blue-500/10 rounded-lg">
-                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-white">{analysis.files_changed}</div>
-                    <div className="text-xs text-white/50">Files Changed</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-black/40 border border-white/5 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-green-500/10 rounded-lg">
-                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-green-400">+{analysis.lines_added}</div>
-                    <div className="text-xs text-white/50">Lines Added</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-black/40 border border-white/5 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-red-500/10 rounded-lg">
-                    <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-red-400">-{analysis.lines_removed}</div>
-                    <div className="text-xs text-white/50">Lines Removed</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-black/40 border border-white/5 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-violet-500/10 rounded-lg">
-                    <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-white">{analysis.security_score}<span className="text-sm text-white/50">/100</span></div>
-                    <div className="text-xs text-white/50">Security Score</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Detailed Analysis */}
-            {analysis.changes_data?.full_analysis && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  AI Analysis Report
-                </h3>
-                <div className="bg-black/40 border border-white/5 rounded-xl p-6">
-                  <pre className="text-sm text-white/80 whitespace-pre-wrap font-mono leading-relaxed">
+          {/* AI Analysis Report */}
+          {analysis.changes_data?.full_analysis && (
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl overflow-hidden"
+              style={{ background: '#0d0d0d', border: '1px solid #1c1c1c' }}
+            >
+              <SectionHeader icon={null} label="AI Analysis Report" />
+              <div className="p-5">
+                <div className="rounded-xl p-4 overflow-x-auto" style={{ background: '#090909', border: '1px solid #181818' }}>
+                  <pre className="text-[12px] leading-relaxed whitespace-pre-wrap font-mono"
+                    style={{ color: 'rgba(255,255,255,0.65)' }}>
                     {analysis.changes_data.full_analysis}
                   </pre>
                 </div>
               </div>
-            )}
+            </motion.div>
+          )}
 
-            {/* Commit Info */}
-            <div className="bg-black/40 border border-white/5 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Commit Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-white/40 mb-1">Commit Hash</p>
-                    <p className="text-sm text-white font-mono bg-black/40 px-3 py-2 rounded-lg">{analysis.commit_hash}</p>
+          {/* Security concerns */}
+          {analysis.security_concerns?.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl overflow-hidden"
+              style={{ background: '#0d0d0d', border: '1px solid rgba(239,68,68,0.18)' }}
+            >
+              <SectionHeader icon={Shield} label="Security Concerns" />
+              <div className="p-4 space-y-2.5">
+                {analysis.security_concerns.map((c, i) => (
+                  <div key={i} className="flex items-start gap-2.5 p-3 rounded-xl"
+                    style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.12)' }}>
+                    <AlertTriangle size={13} style={{ color: '#f87171', flexShrink: 0, marginTop: 2 }} />
+                    <p className="text-[12.5px]" style={{ color: 'rgba(255,255,255,0.62)' }}>{c}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-white/40 mb-1">Author</p>
-                    <p className="text-sm text-white">{analysis.changes_data?.author || 'Unknown'}</p>
-                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Recommendations */}
+          {analysis.recommendations?.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.24, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl overflow-hidden"
+              style={{ background: '#0d0d0d', border: '1px solid #1c1c1c' }}
+            >
+              <SectionHeader
+                icon={null}
+                label={`Recommendations (${analysis.recommendations.length})`}
+                right={
+                  <Link href="/autofix">
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150"
+                      style={{ background: 'rgba(106,171,142,0.10)', border: '1px solid rgba(106,171,142,0.22)', color: '#6aab8e' }}>
+                      <Wrench size={10} /> Auto-Fix
+                    </button>
+                  </Link>
+                }
+              />
+              <div className="p-4 space-y-2.5">
+                {analysis.recommendations.map((rec, i) => {
+                  const isObj = typeof rec === 'object' && rec !== null;
+                  const text  = isObj ? (rec.description || rec.text || JSON.stringify(rec)) : rec;
+                  const sev   = isObj ? rec.severity : null;
+                  const accents = { high: 'rgba(239,68,68,0.07)', medium: 'rgba(245,158,11,0.07)', low: 'rgba(106,171,142,0.06)' };
+                  return (
+                    <div key={i} className="flex items-start gap-3 p-3.5 rounded-xl"
+                      style={{ background: accents[sev] || 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>{i + 1}</span>
+                      </div>
+                      <p className="text-[12.5px] leading-relaxed flex-1" style={{ color: 'rgba(255,255,255,0.65)' }}>{text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Chat CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+            className="flex items-center gap-4 p-4 rounded-xl"
+            style={{ background: 'rgba(106,171,142,0.05)', border: '1px solid rgba(106,171,142,0.18)' }}
+          >
+            <MessageSquare size={16} style={{ color: '#6aab8e', flexShrink: 0 }} />
+            <div className="flex-1">
+              <p className="text-[13px] font-semibold mb-0.5" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                Have questions about this review?
+              </p>
+              <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                Start an AI chat session about this specific analysis
+              </p>
+            </div>
+            <Link href="/chat">
+              <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-semibold cursor-pointer transition-all duration-150"
+                style={{ background: 'rgba(106,171,142,0.12)', border: '1px solid rgba(106,171,142,0.25)', color: '#6aab8e' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(106,171,142,0.20)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(106,171,142,0.12)'; }}>
+                Chat <ChevronRight size={11} />
+              </button>
+            </Link>
+          </motion.div>
+        </div>
+
+        {/* ── Right sidebar ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.14, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+          className="space-y-3"
+          style={{ width: 260, flexShrink: 0 }}
+        >
+          {/* Commit info */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#0d0d0d', border: '1px solid #1c1c1c' }}>
+            <SectionHeader icon={GitCommit} label="Commit Info" />
+            <div className="p-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-1.5" style={{ color: 'rgba(255,255,255,0.28)' }}>Hash</p>
+                <p className="text-[11.5px] font-mono break-all" style={{ color: 'rgba(255,255,255,0.62)', background: '#0a0a0a', border: '1px solid #181818', borderRadius: 8, padding: '6px 10px' }}>
+                  {analysis.commit_hash}
+                </p>
+              </div>
+              {analysis.changes_data?.author && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: 'rgba(255,255,255,0.28)' }}>Author</p>
+                  <p className="text-[12px] font-medium" style={{ color: 'rgba(255,255,255,0.60)' }}>{analysis.changes_data.author}</p>
                 </div>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-white/40 mb-1">Commit Message</p>
-                    <p className="text-sm text-white/80">{analysis.changes_data?.commit_message || 'No message'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-white/40 mb-1">Analysis Date</p>
-                    <p className="text-sm text-white">{formatDate(analysis.created_at)}</p>
-                  </div>
+              )}
+              {analysis.changes_data?.commit_message && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: 'rgba(255,255,255,0.28)' }}>Message</p>
+                  <p className="text-[12px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>{analysis.changes_data.commit_message}</p>
                 </div>
+              )}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: 'rgba(255,255,255,0.28)' }}>Analysed</p>
+                <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.48)' }}>{date}</p>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* Quick stats */}
+          <div className="space-y-2">
+            <StatTile label="Files Changed"  value={analysis.files_changed ?? '—'} icon={FileCode}  accent="rgba(159,18,57,1)" />
+            <StatTile label="Lines Added"    value={`+${analysis.lines_added ?? 0}`} icon={Plus}    accent="#6aab8e" />
+            <StatTile label="Lines Removed"  value={`-${analysis.lines_removed ?? 0}`} icon={Minus} accent="#f87171" />
+            <StatTile label="Security Score" value={`${security}/100`}            icon={Shield}     accent="#f59e0b" />
+          </div>
+        </motion.div>
+
       </div>
+
     </DashboardLayout>
   );
 }

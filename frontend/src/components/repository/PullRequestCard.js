@@ -1,91 +1,220 @@
-// File: src/components/repository/PullRequestCard.js
-import { formatDate } from '@/lib/utils';
+'use client';
+// PullRequestCard.js — Single pull request row
+// Sage Jade Green accent · Clean compact layout · State badges
 
-const getStateColor = (state) => {
-  switch (state) {
-    case 'open': return 'bg-green-500/10 text-green-400 border-green-500/50';
-    case 'closed': return 'bg-red-500/10 text-red-400 border-red-500/50';
-    case 'merged': return 'bg-purple-500/10 text-purple-400 border-purple-500/50';
-    default: return 'bg-white/10 text-white/60 border-white/10';
-  }
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  GitPullRequest, User, Clock, Plus, Minus,
+  ArrowRight, ExternalLink, Zap, GitMerge, GitBranchPlus,
+} from 'lucide-react';
+
+// ── Palette ─────────────────────────────────────────────────────────────
+const G = {
+  full:   '#6aab8e',
+  border: 'rgba(106,171,142,0.28)',
+  text:   'rgba(130,200,168,0.90)',
+  faint:  'rgba(106,171,142,0.07)',
+  glow:   'rgba(106,171,142,0.16)',
 };
 
-export default function PullRequestCard({ pullRequest, onAnalyze, isAnalyzing }) {
+const STATE = {
+  open:   { label: 'OPEN',   bg: 'rgba(106,171,142,0.10)', border: 'rgba(106,171,142,0.30)', color: 'rgba(130,200,168,0.88)' },
+  closed: { label: 'CLOSED', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)', color: 'rgba(248,113,113,0.80)' },
+  merged: { label: 'MERGED', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.25)', color: 'rgba(167,139,250,0.80)' },
+};
+
+function StateIcon({ state }) {
+  if (state === 'merged') return <GitMerge size={12} />;
+  if (state === 'closed') return <GitPullRequest size={12} />;
+  return <GitBranchPlus size={12} />;
+}
+
+export default function PullRequestCard({ pullRequest: pr, onAnalyze, isAnalyzing, index = 0 }) {
+  const [hovered,    setHovered]    = useState(false);
+  const [analyzing,  setAnalyzing]  = useState(false);
+
+  const state   = pr.state?.toLowerCase() || 'open';
+  const badge   = STATE[state] || STATE.open;
+
+  const date = pr.updated_at
+    ? new Date(pr.updated_at).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      })
+    : '—';
+
+  const handleAnalyze = async (e) => {
+    e.stopPropagation();
+    if (analyzing || isAnalyzing) return;
+    setAnalyzing(true);
+    try { await onAnalyze?.(pr); }
+    finally { setAnalyzing(false); }
+  };
+
+  const busy = analyzing || isAnalyzing;
+
   return (
-    <div className="group relative">
-      <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl blur opacity-0 group-hover:opacity-20 transition duration-300"></div>
-      <div className="relative bg-[#161616] border border-white/10 rounded-2xl p-6 hover:border-emerald-500/50 transition-all duration-300">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="font-medium text-white">#{pullRequest.number}: {pullRequest.title}</h3>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStateColor(pullRequest.state)}`}>
-                {pullRequest.state.toUpperCase()}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-white/50 mb-3">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                {pullRequest.user}
-              </div>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-                {pullRequest.head_branch} → {pullRequest.base_branch}
-              </div>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {formatDate(pullRequest.updated_at)}
-              </div>
-            </div>
-            <div className="flex items-center gap-4 text-sm">
-              <span className="text-green-400">+{pullRequest.additions}</span>
-              <span className="text-red-400">-{pullRequest.deletions}</span>
-              <span className="text-white/40">{pullRequest.changed_files} files</span>
-            </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <a href={pullRequest.html_url} target="_blank" rel="noopener noreferrer">
-              <button className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all duration-200">
-                <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </button>
-            </a>
-            <button 
-              onClick={() => onAnalyze(pullRequest)}
-              disabled={isAnalyzing}
-              className={`relative px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
-                isAnalyzing 
-                  ? 'bg-emerald-600/50 cursor-not-allowed' 
-                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500'
-              } text-white`}
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.045, duration: 0.30, ease: [0.16, 1, 0.3, 1] }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="relative group"
+      style={{
+        borderBottom: '1px solid #151515',
+        borderLeft: `2px solid ${hovered ? G.border : 'transparent'}`,
+        background: hovered ? G.faint : 'transparent',
+        transition: 'background 0.15s, border-color 0.15s',
+      }}
+    >
+      {/* left glow on hover */}
+      {hovered && (
+        <div className="absolute left-0 top-0 bottom-0 w-24 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse at 0% 50%, rgba(106,171,142,0.06) 0%, transparent 100%)' }} />
+      )}
+
+      <div className="relative flex items-center gap-4 px-6 py-4">
+
+        {/* ── Icon ── */}
+        <div
+          className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-150"
+          style={{
+            background: hovered ? G.faint : 'rgba(255,255,255,0.025)',
+            border: `1px solid ${hovered ? G.border : '#1e1e1e'}`,
+          }}
+        >
+          <GitPullRequest size={13} style={{ color: hovered ? G.text : 'rgba(255,255,255,0.25)' }} />
+        </div>
+
+        {/* ── Main content ── */}
+        <div className="flex-1 min-w-0">
+
+          {/* Row 1: number + title + state badge */}
+          <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+            <span className="text-[11px] font-mono font-bold shrink-0"
+              style={{ color: 'rgba(255,255,255,0.30)' }}>
+              #{pr.number}
+            </span>
+            <p className="text-[13px] font-semibold leading-snug line-clamp-1 transition-colors duration-150 flex-1 min-w-0"
+              style={{ color: hovered ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.72)' }}>
+              {pr.title || '(untitled)'}
+            </p>
+            {/* State badge */}
+            <span
+              className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide shrink-0"
+              style={{ background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color }}
             >
-              {isAnalyzing ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>Analyzing PR...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  <span>Analyze PR</span>
-                </>
-              )}
-            </button>
+              <StateIcon state={state} />
+              {badge.label}
+            </span>
+          </div>
+
+          {/* Row 2: branch flow + author + date + stats */}
+          <div className="flex items-center gap-3 flex-wrap">
+
+            {/* Branch flow */}
+            {pr.head_branch && pr.base_branch && (
+              <span className="flex items-center gap-1 text-[11px] font-mono"
+                style={{ color: 'rgba(255,255,255,0.32)' }}>
+                <span style={{ color: G.text }}>{pr.head_branch}</span>
+                <ArrowRight size={9} style={{ color: 'rgba(255,255,255,0.20)' }} />
+                <span>{pr.base_branch}</span>
+              </span>
+            )}
+
+            <span style={{ color: 'rgba(255,255,255,0.12)', fontSize: 10 }}>·</span>
+
+            {/* Author */}
+            <span className="flex items-center gap-1 text-[11px]"
+              style={{ color: 'rgba(255,255,255,0.32)' }}>
+              <User size={9} />
+              {pr.user || 'Unknown'}
+            </span>
+
+            <span style={{ color: 'rgba(255,255,255,0.12)', fontSize: 10 }}>·</span>
+
+            {/* Date */}
+            <span className="flex items-center gap-1 text-[11px]"
+              style={{ color: 'rgba(255,255,255,0.26)' }}>
+              <Clock size={9} />
+              {date}
+            </span>
+
+            {/* Stats */}
+            {(pr.additions !== undefined || pr.deletions !== undefined) && (
+              <>
+                <span style={{ color: 'rgba(255,255,255,0.12)', fontSize: 10 }}>·</span>
+                {pr.additions !== undefined && (
+                  <span className="flex items-center gap-0.5 text-[11px]" style={{ color: '#6aab8e' }}>
+                    <Plus size={9} />{pr.additions}
+                  </span>
+                )}
+                {pr.deletions !== undefined && (
+                  <span className="flex items-center gap-0.5 text-[11px]" style={{ color: '#f87171' }}>
+                    <Minus size={9} />{pr.deletions}
+                  </span>
+                )}
+                {pr.changed_files !== undefined && (
+                  <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.22)' }}>
+                    {pr.changed_files} files
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </div>
+
+        {/* ── Action buttons ── */}
+        <div
+          className="flex items-center gap-2 shrink-0 transition-all duration-200"
+          style={{ opacity: hovered ? 1 : 0, transform: hovered ? 'translateX(0)' : 'translateX(6px)' }}
+        >
+          {/* Open on GitHub */}
+          {pr.html_url && (
+            <a href={pr.html_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-xl cursor-pointer transition-all duration-150"
+                style={{ color: 'rgba(255,255,255,0.28)', border: '1px solid #1e1e1e' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; e.currentTarget.style.borderColor = '#2e2e2e'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.28)'; e.currentTarget.style.borderColor = '#1e1e1e'; }}
+                title="View on GitHub"
+              >
+                <ExternalLink size={12} />
+              </button>
+            </a>
+          )}
+
+          {/* Analyze button */}
+          <button
+            onClick={handleAnalyze}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-3.5 py-[7px] rounded-xl text-[12px] font-bold cursor-pointer transition-all duration-150"
+            style={{
+              background: busy ? 'rgba(106,171,142,0.05)' : G.faint,
+              border: `1px solid ${busy ? 'rgba(106,171,142,0.15)' : G.border}`,
+              color: busy ? 'rgba(130,200,168,0.45)' : G.text,
+              cursor: busy ? 'not-allowed' : 'pointer',
+            }}
+            onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'rgba(106,171,142,0.14)'; e.currentTarget.style.borderColor = 'rgba(106,171,142,0.45)'; }}}
+            onMouseLeave={e => { if (!busy) { e.currentTarget.style.background = G.faint; e.currentTarget.style.borderColor = G.border; }}}
+          >
+            {busy ? (
+              <>
+                <div className="w-3 h-3 border border-t-transparent rounded-full animate-spin"
+                  style={{ borderColor: 'rgba(106,171,142,0.40)', borderTopColor: 'transparent' }} />
+                Analyzing…
+              </>
+            ) : (
+              <>
+                <Zap size={11} />
+                Analyze PR
+              </>
+            )}
+          </button>
+        </div>
+
       </div>
-    </div>
+    </motion.div>
   );
 }

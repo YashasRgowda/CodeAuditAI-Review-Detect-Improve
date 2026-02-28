@@ -17,7 +17,7 @@
 #   - POST /analysis/stream            → Real-time streaming commit analysis
 #   - POST /analysis/pr/stream         → Real-time streaming PR analysis
 #
-# Quick analysis returns results without saving to DB.
+# Quick analysis returns results WITHOUT saving to DB.
 # Full analysis saves results to the database for history tracking.
 # Stream endpoints send real-time progress events via SSE.
 # ============================================================================
@@ -240,7 +240,7 @@ async def create_analysis(
 @router.get("/", response_model=list[AnalysisResponse])
 async def get_analyses(
     repository_id: int | None = Query(None),
-    limit: int = Query(10, le=50),
+    limit: int = Query(50, le=100),
     db: Session = Depends(get_db)
 ):
     """Get analysis history"""
@@ -263,6 +263,12 @@ async def get_analysis(analysis_id: int, db: Session = Depends(get_db)):
 
     changes = analysis.changes_data or {}
 
+    # Safely resolve repo name — relationship may not always lazy-load cleanly
+    try:
+        repo_name = analysis.repository.repo_name if analysis.repository else f"repo-{analysis.repository_id}"
+    except Exception:
+        repo_name = f"repo-{analysis.repository_id}"
+
     return DetailedAnalysisResponse(
         id=analysis.id,
         summary=analysis.summary,
@@ -275,7 +281,7 @@ async def get_analysis(analysis_id: int, db: Session = Depends(get_db)):
         commit_hash=analysis.commit_hash,
         commit_message=changes.get("commit_message", ""),
         author=changes.get("author", ""),
-        repository_name=analysis.repository.repo_name,
+        repository_name=repo_name,
         created_at=analysis.created_at,
         changes_data=changes,
         recommendations=changes.get("recommendations", []),

@@ -6,7 +6,7 @@
 #   Commit Analysis:
 #   - AnalysisCreate / AnalysisRequest → Input for full/quick analysis
 #   - AnalysisResponse              → Full analysis result from database
-#   - QuickAnalysisResponse         → Quick AI result (not saved to DB)
+#   - QuickAnalysisResponse         → Quick AI result (NOT saved to DB)
 #   - DetailedAnalysisResponse      → Detailed view with all fields
 #   - StreamAnalysisRequest         → Input for streaming analysis (SSE)
 #   - FixableIssue                  → Issue that can be auto-fixed
@@ -109,7 +109,8 @@ class DetailedAnalysisResponse(BaseModel):
     repository_name: str
     created_at: datetime
     changes_data: dict[str, Any]
-    recommendations: list[str] = []
+    # Recommendations are objects (FixableIssue dicts), not plain strings
+    recommendations: list[Any] = []
     impact_areas: list[str] = []
     security_concerns: list[str] = []
     maintainability_score: int = 70
