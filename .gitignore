@@ -28,3 +28,4 @@ chroma_data/
 # Node (frontend)
 node_modules/
 .next/
+.env.docker
