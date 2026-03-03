@@ -1,0 +1,11 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.docker
+.DS_Store
+chroma_data/
+.pytest_cache/
+
+.env.docker

@@ -1,0 +1,69 @@
+services:
+
+  db:
+    image: postgres:16
+    container_name: codeaudit_postgres
+    environment:
+      POSTGRES_USER: codeaudit
+      POSTGRES_PASSWORD: codeaudit_pass
+      POSTGRES_DB: code_review_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"       #hostport:containerport
+    networks:
+      - codeaudit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codeaudit -d code_review_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    container_name: codeaudit_redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - codeaudit-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codeaudit_backend
+    env_file:
+      - ./backend/.env.docker
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - /app/venv
+      - /app/.venv
+      - chroma_data:/app/chroma_data
+    networks:
+      - codeaudit-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  chroma_data:
+
+networks:
+  codeaudit-network:
+    driver: bridge
