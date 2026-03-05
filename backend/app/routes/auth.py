@@ -15,6 +15,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import GitHubCallbackRequest
@@ -73,14 +74,14 @@ async def github_callback(code: str, state: str = None, db: Session = Depends(ge
 
         from fastapi.responses import RedirectResponse
         return RedirectResponse(
-            url=f"http://localhost:3000/auth/callback?code={code}&state={state}",
+            url=f"{settings.FRONTEND_URL}/auth/callback?code={code}&state={state}",
             status_code=302
         )
 
     except Exception:
         from fastapi.responses import RedirectResponse
         return RedirectResponse(
-            url="http://localhost:3000/auth?error=callback_failed",
+            url=f"{settings.FRONTEND_URL}/auth?error=callback_failed",
             status_code=302
         )
 

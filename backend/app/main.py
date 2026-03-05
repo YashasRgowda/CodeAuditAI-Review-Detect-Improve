@@ -33,22 +33,23 @@ pull_request.Base.metadata.create_all(bind=engine)
 analysis.Base.metadata.create_all(bind=engine)
 pr_analysis.Base.metadata.create_all(bind=engine)
 
+# Hide Swagger/ReDoc in production to avoid exposing internals
+_docs_url = "/docs" if settings.DEBUG else None
+_redoc_url = "/redoc" if settings.DEBUG else None
+
 # Create FastAPI app
 app = FastAPI(
     title="AI Code Review Assistant",
     description="AI-powered code review and analysis platform with multi-agent AI, conversational review, RAG memory, and on-demand auto-fix",
-    version="5.0.0"
+    version="5.0.0",
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
 )
 
-# Add CORS middleware
+# Add CORS middleware — origins driven by ALLOWED_ORIGINS env var
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:3003",
-    ],  # Next.js frontend (any dev port)
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

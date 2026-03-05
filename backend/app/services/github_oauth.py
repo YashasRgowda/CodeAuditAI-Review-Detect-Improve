@@ -18,6 +18,8 @@ from fastapi import HTTPException
 from app.core.config import settings
 
 
+
+
 class GitHubOAuth:
     def __init__(self):
         self.client_id = settings.GITHUB_CLIENT_ID
@@ -30,8 +32,8 @@ class GitHubOAuth:
         """Generate GitHub OAuth authorization URL"""
         params = {
             "client_id": self.client_id,
-            "scope": "user:email,repo",  # Request user info and repo access
-            "redirect_uri": "http://localhost:8000/auth/github/callback"
+            "scope": "user:email,repo",
+            "redirect_uri": f"{settings.BACKEND_URL}/auth/github/callback",
         }
         if state:
             params["state"] = state

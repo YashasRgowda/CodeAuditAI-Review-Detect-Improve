@@ -25,18 +25,32 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_ID: str | None = None
     GITHUB_CLIENT_SECRET: str | None = None
 
-    # Security
-    SECRET_KEY: str = "your-super-secret-key-change-this-in-production"
+    # Security — no default; must be set in env
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # URLs — used to build redirect URIs and CORS; override in production
+    FRONTEND_URL: str = "http://localhost:3000"
+    BACKEND_URL: str = "http://localhost:8000"
+
+    # Comma-separated list of allowed CORS origins, e.g.:
+    #   ALLOWED_ORIGINS=https://myapp.vercel.app,https://myapp.com
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003"
+
     # App Settings
-    DEBUG: bool = True
+    DEBUG: bool = False
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
     class Config:
         env_file = ".env"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Parse ALLOWED_ORIGINS env var into a list."""
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+
 
 # Create global settings instance
 settings = Settings()

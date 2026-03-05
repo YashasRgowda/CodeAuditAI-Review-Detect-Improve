@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_github_user
 from app.models.repository import Repository
 from app.models.user import User
 from app.schemas.pull_request import (
@@ -34,12 +35,9 @@ router = APIRouter()
 @router.get("/github/list", response_model=list[GitHubRepositoryResponse])
 async def list_github_repositories(
     per_page: int = Query(30, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_github_user),
 ):
-    """List user's GitHub repositories"""
-    user = db.query(User).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="No authenticated user found")
 
     try:
         repositories = await github_service.get_user_repositories(user, per_page)
@@ -51,12 +49,9 @@ async def list_github_repositories(
 @router.post("/add-github-repo", response_model=RepositoryResponse)
 async def add_github_repository(
     repo_name: str = Query(..., description="Repository full name like 'username/repo-name'"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_github_user),
 ):
-    """Add a GitHub repository for analysis by its full name"""
-    user = db.query(User).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="No authenticated user found")
 
     try:
         repo_details = await github_service.get_repository_details(user, repo_name)
@@ -89,12 +84,11 @@ async def add_github_repository(
 
 
 @router.get("/", response_model=list[RepositoryResponse])
-async def get_user_repositories(db: Session = Depends(get_db)):
+async def get_user_repositories(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_github_user),
+):
     """Get user's added repositories for analysis"""
-    user = db.query(User).first()
-    if not user:
-        return []
-
     repositories = db.query(Repository).filter(
         Repository.user_id == user.id
     ).order_by(Repository.created_at.desc()).all()

@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.database import get_db
+from app.core.security import get_github_user
 from app.models.analysis import Analysis
 from app.models.pr_analysis import PRAnalysis
 from app.models.repository import Repository
@@ -299,11 +300,11 @@ async def get_analysis(analysis_id: int, db: Session = Depends(get_db)):
 # ====================================================================
 
 @router.post("/pr/quick", response_model=QuickPRAnalysisResponse)
-async def quick_pr_analysis(request: QuickPRAnalysisRequest, db: Session = Depends(get_db)):
-    """Quick PR analysis without saving to database"""
-    user = db.query(User).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="No authenticated user found")
+async def quick_pr_analysis(
+    request: QuickPRAnalysisRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_github_user),
+):
 
     try:
         pr_data = await github_service.get_pull_request_files(user, request.repo_full_name, request.pr_number)

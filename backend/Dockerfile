@@ -16,7 +16,14 @@ RUN pip install --upgrade pip && \
 
 COPY . .
 
+# Run as non-root user for security
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
+
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
+# WEB_CONCURRENCY controls worker count (default 1 on free tier, set higher in prod)
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_CONCURRENCY:-1}"]

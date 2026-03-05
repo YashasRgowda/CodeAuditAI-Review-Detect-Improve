@@ -12,7 +12,8 @@
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, HTTPException, status
+import httpx
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -81,3 +82,70 @@ async def get_current_user_optional(
         return await get_current_user(credentials, db)
     except HTTPException:
         return None
+
+
+async def get_github_user(
+    request: Request,
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    Resolve the current user from a GitHub OAuth token.
+
+    The frontend sends: Authorization: token <github_access_token>
+    We look up the user in the DB by their stored token. If they don't
+    exist yet (e.g. fresh Docker DB), we call the GitHub API to fetch
+    their profile and create the record automatically.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header:
+        raise HTTPException(status_code=401, detail="No authorization token provided")
+
+    if auth_header.startswith("token "):
+        github_token = auth_header[6:]
+    elif auth_header.startswith("Bearer "):
+        github_token = auth_header[7:]
+    else:
+        raise HTTPException(status_code=401, detail="Invalid authorization header format")
+
+    # Fast path: token already in DB
+    user = db.query(User).filter(User.access_token == github_token).first()
+    if user:
+        return user
+
+    # Slow path: unknown token — verify with GitHub and create/update user
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.github.com/user",
+                headers={"Authorization": f"token {github_token}", "Accept": "application/json"},
+                timeout=10.0,
+            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid or expired GitHub token")
+        gh = resp.json()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"Failed to verify GitHub token: {exc}") from exc
+
+    # Find by GitHub ID and update, or create fresh
+    user = db.query(User).filter(User.github_id == str(gh["id"])).first()
+    if user:
+        user.access_token = github_token
+        user.username = gh.get("login", user.username)
+        user.avatar_url = gh.get("avatar_url", user.avatar_url)
+        db.commit()
+        db.refresh(user)
+    else:
+        user = User(
+            github_id=str(gh["id"]),
+            username=gh["login"],
+            email=gh.get("email"),
+            avatar_url=gh.get("avatar_url"),
+            access_token=github_token,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    return user

@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: codeaudit-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # paste your Supabase / external Postgres URL here
+      - key: REDIS_URL
+        sync: false          # paste your Upstash Redis URL here
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true  # Render auto-generates a secure random value
+      - key: FRONTEND_URL
+        sync: false          # e.g. https://your-app.vercel.app
+      - key: BACKEND_URL
+        sync: false          # e.g. https://codeaudit-backend.onrender.com
+      - key: ALLOWED_ORIGINS
+        sync: false          # e.g. https://your-app.vercel.app
+      - key: DEBUG
+        value: "false"
+      - key: WEB_CONCURRENCY
+        value: "1"
