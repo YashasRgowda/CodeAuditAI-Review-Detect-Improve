@@ -42,6 +42,10 @@ database_url = urlunparse(parsed._replace(query=clean_query))
 connect_args: dict = {}
 if needs_ssl or (parsed.hostname and parsed.hostname not in ("localhost", "127.0.0.1")):
     ssl_context = ssl.create_default_context()
+    # Supabase pooler uses a self-signed cert in the chain — disable verification
+    # while keeping the connection encrypted
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
     connect_args["ssl_context"] = ssl_context
 
 engine = create_engine(
