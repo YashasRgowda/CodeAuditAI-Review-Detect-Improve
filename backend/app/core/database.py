@@ -11,7 +11,7 @@
 # ============================================================================
 
 import ssl
-from urllib.parse import urlparse, urlunparse, urlencode, parse_qs
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
