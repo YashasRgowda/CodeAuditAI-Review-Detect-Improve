@@ -18,7 +18,6 @@ from fastapi import HTTPException
 from app.core.config import settings
 
 
-
 class GitHubOAuth:
     def __init__(self):
         self.client_id = settings.GITHUB_CLIENT_ID
