@@ -10,32 +10,53 @@
 #   - test_connection(): Helper to verify the database is reachable
 # ============================================================================
 
+import ssl
+from urllib.parse import urlparse, urlunparse, urlencode, parse_qs
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 
-# Use standard PostgreSQL driver (psycopg2)
 database_url = settings.DATABASE_URL
-if "postgresql+asyncpg://" in database_url:
-    database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
 
-# Create database engine - using psycopg2 for PostgreSQL
+# Normalize driver prefix
+if "postgresql+asyncpg://" in database_url:
+    database_url = database_url.replace("postgresql+asyncpg://", "postgresql+pg8000://")
+if database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+pg8000://", 1)
+
+# pg8000 does not accept ?sslmode=require in the URL — strip it and pass SSL
+# via connect_args instead. We enable SSL whenever the URL targets a remote
+# host (i.e. not localhost / 127.0.0.1).
+parsed = urlparse(database_url)
+query_params = parse_qs(parsed.query, keep_blank_values=True)
+needs_ssl = query_params.pop("sslmode", None) is not None  # True if URL had sslmode
+
+# Rebuild URL without sslmode
+clean_query = urlencode({k: v[0] for k, v in query_params.items()})
+database_url = urlunparse(parsed._replace(query=clean_query))
+
+# Build connect_args: add SSL context for remote databases
+connect_args: dict = {}
+if needs_ssl or (parsed.hostname and parsed.hostname not in ("localhost", "127.0.0.1")):
+    ssl_context = ssl.create_default_context()
+    connect_args["ssl_context"] = ssl_context
+
 engine = create_engine(
     database_url,
+    connect_args=connect_args,
     pool_pre_ping=True,
     pool_recycle=300,
-    echo=settings.DEBUG  # Log SQL queries in debug mode
+    echo=settings.DEBUG,
 )
 
-# Create sessionmaker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create base class for database models
 Base = declarative_base()
 
-# Dependency to get database session
+
 def get_db():
     db = SessionLocal()
     try:
@@ -43,7 +64,7 @@ def get_db():
     finally:
         db.close()
 
-# Test database connection
+
 def test_connection():
     try:
         with engine.connect() as connection:
