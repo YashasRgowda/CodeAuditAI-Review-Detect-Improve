@@ -38,9 +38,11 @@ needs_ssl = query_params.pop("sslmode", None) is not None  # True if URL had ssl
 clean_query = urlencode({k: v[0] for k, v in query_params.items()})
 database_url = urlunparse(parsed._replace(query=clean_query))
 
-# Build connect_args: add SSL context for remote databases
+# Build connect_args: only add SSL when sslmode=require was explicitly in the
+# URL (e.g. Supabase). Never force SSL for local/Docker databases — they don't
+# support it and will crash with "Server refuses SSL".
 connect_args: dict = {}
-if needs_ssl or (parsed.hostname and parsed.hostname not in ("localhost", "127.0.0.1")):
+if needs_ssl:
     ssl_context = ssl.create_default_context()
     # Supabase pooler uses a self-signed cert in the chain — disable verification
     # while keeping the connection encrypted
