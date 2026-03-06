@@ -9,7 +9,10 @@ const handler = NextAuth({
       clientSecret: process.env.GITHUB_SECRET,
       authorization: {
         params: {
-          scope: "user:email repo"
+          scope: "user:email repo",
+          // Forces GitHub to show the account/login screen on every sign-in
+          // so users can switch between GitHub accounts
+          prompt: "login",
         }
       }
     })

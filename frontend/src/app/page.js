@@ -239,6 +239,9 @@ export default function Dashboard() {
     if (status === 'unauthenticated') router.push('/auth');
   }, [status, router]);
 
+  // Prevent any flash of dashboard content before redirect fires
+  if (status === 'loading' || status === 'unauthenticated') return null;
+
   useEffect(() => {
     if (status !== 'authenticated') return;
     (async () => {
