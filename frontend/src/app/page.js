@@ -239,9 +239,6 @@ export default function Dashboard() {
     if (status === 'unauthenticated') router.push('/auth');
   }, [status, router]);
 
-  // Prevent any flash of dashboard content before redirect fires
-  if (status === 'loading' || status === 'unauthenticated') return null;
-
   useEffect(() => {
     if (status !== 'authenticated') return;
     (async () => {
@@ -258,7 +255,8 @@ export default function Dashboard() {
     })();
   }, [status]);
 
-  if (status === 'loading') return null;
+  // All hooks are above — safe to early-return now
+  if (status === 'loading' || status === 'unauthenticated') return null;
 
   const hour      = new Date().getHours();
   const greeting  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
