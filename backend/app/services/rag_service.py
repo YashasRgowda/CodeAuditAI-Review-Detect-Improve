@@ -275,15 +275,27 @@ class RAGService:
         if scores:
             parts.append(f"Scores: {', '.join(scores)}")
 
-        # Recommendations
+        # Recommendations — items can be str or dict with a 'description' key
         recs = analysis_data.get("recommendations", [])
         if recs:
-            parts.append(f"Recommendations: {'; '.join(recs[:5])}")
+            rec_texts = []
+            for r in recs[:5]:
+                if isinstance(r, dict):
+                    rec_texts.append(r.get("description", str(r)))
+                else:
+                    rec_texts.append(str(r))
+            parts.append(f"Recommendations: {'; '.join(rec_texts)}")
 
-        # Security concerns
+        # Security concerns — same dict/str handling
         concerns = analysis_data.get("security_concerns", [])
         if concerns:
-            parts.append(f"Security concerns: {'; '.join(concerns[:5])}")
+            concern_texts = []
+            for c in concerns[:5]:
+                if isinstance(c, dict):
+                    concern_texts.append(c.get("description", str(c)))
+                else:
+                    concern_texts.append(str(c))
+            parts.append(f"Security concerns: {'; '.join(concern_texts)}")
 
         # Impact areas
         impacts = analysis_data.get("impact_areas", [])

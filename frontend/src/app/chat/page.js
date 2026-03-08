@@ -331,24 +331,24 @@ function ContextPanel({ summary }) {
 ───────────────────────────────────────────────────── */
 function EmptyState({ analysisId, setAnalysisId, onStart, starting }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+    <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 overflow-y-auto">
 
       {/* Icon */}
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.4 }}
-        className="relative mb-8"
+        className="relative mb-4"
       >
         <div
-          className="w-20 h-20 rounded-3xl flex items-center justify-center"
+          className="w-14 h-14 rounded-2xl flex items-center justify-center"
           style={{ background: AD, border: `1px solid ${AM}` }}
         >
-          <MessageSquare size={34} style={{ color: A }} />
+          <MessageSquare size={24} style={{ color: A }} />
         </div>
         {/* Pulse ring */}
         <motion.div
-          className="absolute inset-0 rounded-3xl pointer-events-none"
+          className="absolute inset-0 rounded-2xl pointer-events-none"
           style={{ border: `1px solid ${AM}` }}
           animate={{ scale: [1, 1.35], opacity: [0.6, 0] }}
           transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
@@ -359,12 +359,12 @@ function EmptyState({ analysisId, setAnalysisId, onStart, starting }) {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="text-center mb-8 max-w-sm"
+        className="text-center mb-5 max-w-sm"
       >
-        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">
+        <h2 className="text-xl font-bold text-white mb-1.5 tracking-tight">
           Chat with your Code Review
         </h2>
-        <p className="text-[14px] text-white/40 leading-relaxed">
+        <p className="text-[13px] text-white/40 leading-relaxed">
           Enter an Analysis ID to start a conversation. Ask follow-up questions,
           request fixes, or explore risks — the AI has full context.
         </p>
@@ -375,7 +375,7 @@ function EmptyState({ analysisId, setAnalysisId, onStart, starting }) {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18 }}
-        className="w-full max-w-sm mb-10"
+        className="w-full max-w-sm mb-5"
       >
         <div
           className="flex items-center gap-2 rounded-xl px-4 py-3"
@@ -758,27 +758,34 @@ function PageHeader({ sessionActive }) {
    INNER (needs useSearchParams — inside Suspense)
 ───────────────────────────────────────────────────── */
 function ChatInner() {
-  const searchParams = useSearchParams();
-  const initSession  = searchParams.get('session') || '';
+  const searchParams  = useSearchParams();
+  const initSession   = searchParams.get('session')    || '';
+  const initAnalysisId = searchParams.get('analysisId') || '';
 
   const [sessionId,  setSessionId]  = useState(initSession);
-  const [analysisId, setAnalysisId] = useState('');
+  const [analysisId, setAnalysisId] = useState(initAnalysisId);
   const [messages,   setMessages]   = useState([]);
   const [loading,    setLoading]    = useState(false);
   const [starting,   setStarting]   = useState(false);
   const [summary,    setSummary]    = useState(null);
 
   // Load existing session history on mount (URL ?session= param case)
-  // Note: only restores messages — summary comes from analysisApi.get() in handleStart
   useEffect(() => {
     if (!sessionId) return;
     chatApi.history(sessionId)
       .then(data => {
         setMessages(data.messages || []);
-        // do NOT overwrite summary here — analysis_summary from Redis is just a plain string
       })
       .catch(() => {});
   }, [sessionId]);
+
+  // Auto-start when arriving from analysis detail page via ?analysisId=
+  useEffect(() => {
+    if (initAnalysisId && !sessionId && !starting) {
+      handleStart();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initAnalysisId]);
 
   const handleStart = async () => {
     if (!analysisId.trim()) return toast.error('Enter an analysis ID');

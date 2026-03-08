@@ -3,6 +3,8 @@ import NextAuth from 'next-auth'
 import GithubProvider from 'next-auth/providers/github'
 
 const handler = NextAuth({
+  // Required for NextAuth v4 + Next.js 15 compatibility
+  trustHost: true,
   providers: [
     GithubProvider({
       clientId: process.env.GITHUB_ID,
@@ -10,9 +12,6 @@ const handler = NextAuth({
       authorization: {
         params: {
           scope: "user:email repo",
-          // Forces GitHub to show the account/login screen on every sign-in
-          // so users can switch between GitHub accounts
-          prompt: "login",
         }
       }
     })

@@ -11,9 +11,9 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import ScoreGauge from '@/components/ui/ScoreGauge';
 import { analysisApi } from '@/lib/api/analysis';
 import {
-  ArrowLeft, GitCommit, FileCode, Calendar, User,
+  ArrowLeft, GitCommit, FileCode, Calendar,
   Shield, AlertTriangle, Wrench, MessageSquare, ChevronRight,
-  Plus, Minus, Hash,
+  Plus, Minus, Brain, History,
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────
@@ -212,26 +212,148 @@ export default function AnalysisDetailsPage() {
             </div>
           </motion.div>
 
-          {/* AI Analysis Report */}
-          {analysis.changes_data?.full_analysis && (
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.18, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-2xl overflow-hidden"
-              style={{ background: '#0d0d0d', border: '1px solid #1c1c1c' }}
-            >
-              <SectionHeader icon={null} label="AI Analysis Report" />
-              <div className="p-5">
-                <div className="rounded-xl p-4 overflow-x-auto" style={{ background: '#090909', border: '1px solid #181818' }}>
-                  <pre className="text-[12px] leading-relaxed whitespace-pre-wrap font-mono"
-                    style={{ color: 'rgba(255,255,255,0.65)' }}>
-                    {analysis.changes_data.full_analysis}
-                  </pre>
+          {/* AI Analysis Report — full depth interactive layout */}
+          {analysis.changes_data?.full_analysis && (() => {
+            let parsed = null;
+            try { parsed = JSON.parse(analysis.changes_data.full_analysis); } catch {}
+            if (!parsed) return null;
+
+            const isPastReview =
+              parsed.code_quality_assessment?.toLowerCase().includes('past review') ||
+              parsed.summary?.toLowerCase().includes('past review');
+
+            const RISK_META = {
+              low:      { color: '#6aab8e', bg: 'rgba(106,171,142,0.10)', label: 'Low Risk'      },
+              medium:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.10)',  label: 'Medium Risk'   },
+              high:     { color: '#f87171', bg: 'rgba(239,68,68,0.10)',   label: 'High Risk'     },
+              critical: { color: '#e11d48', bg: 'rgba(225,29,72,0.10)',   label: 'Critical Risk' },
+            };
+            const CT_META = {
+              bug_fix:     { color: '#f87171', label: 'Bug Fix'     },
+              feature:     { color: '#6aab8e', label: 'Feature'     },
+              refactor:    { color: '#818cf8', label: 'Refactor'    },
+              performance: { color: '#fbbf24', label: 'Performance' },
+              docs:        { color: '#22d3ee', label: 'Docs'        },
+              other:       { color: 'rgba(255,255,255,0.38)', label: parsed.change_type || 'Other' },
+            };
+            const rm  = RISK_META[parsed.risk_level?.toLowerCase()] || RISK_META.medium;
+            const ctm = CT_META[parsed.change_type]                  || CT_META.other;
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.18, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+                className="rounded-2xl overflow-hidden"
+                style={{ background: '#0d0d0d', border: '1px solid #1c1c1c' }}
+              >
+                <SectionHeader icon={Brain} label="AI Analysis Report" />
+
+                <div className="p-5 space-y-5">
+
+                  {/* ── RAG memory banner ── */}
+                  {isPastReview && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.25 }}
+                      className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl"
+                      style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.20)' }}
+                    >
+                      <History size={13} style={{ color: '#818cf8', flexShrink: 0 }} />
+                      <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                        <span style={{ color: '#818cf8', fontWeight: 700 }}>AI memory active</span>
+                        {' '}— patterns found in your past repo reviews informed this analysis.
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* ── Change classification row ── */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl"
+                      style={{ background: `${ctm.color}12`, border: `1px solid ${ctm.color}28` }}>
+                      <div className="w-2 h-2 rounded-full" style={{ background: ctm.color }} />
+                      <span className="text-[12px] font-semibold" style={{ color: ctm.color }}>{ctm.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl"
+                      style={{ background: rm.bg, border: `1px solid ${rm.color}30` }}>
+                      <Shield size={11} style={{ color: rm.color }} />
+                      <span className="text-[12px] font-semibold" style={{ color: rm.color }}>{rm.label}</span>
+                    </div>
+                    {parsed.overall_score && (
+                      <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl ml-auto"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.30)' }}>Overall</span>
+                        <span className="text-[15px] font-black tabular-nums" style={{ color: 'rgba(255,255,255,0.80)' }}>
+                          {parsed.overall_score}<span className="text-[10px] font-normal" style={{ color: 'rgba(255,255,255,0.28)' }}>/10</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Divider ── */}
+                  <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
+
+                  {/* ── AI Summary ── */}
+                  {parsed.summary && (
+                    <div className="space-y-2">
+                      <p className="text-[10.5px] font-bold uppercase tracking-[0.15em]"
+                        style={{ color: 'rgba(255,255,255,0.25)' }}>Review Summary</p>
+                      <p className="text-[13.5px] leading-[1.85]" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                        {parsed.summary}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ── Divider ── */}
+                  {parsed.code_quality_assessment && (
+                    <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
+                  )}
+
+                  {/* ── Code Quality Deep Dive ── */}
+                  {parsed.code_quality_assessment && (
+                    <div className="space-y-2">
+                      <p className="text-[10.5px] font-bold uppercase tracking-[0.15em]"
+                        style={{ color: 'rgba(255,255,255,0.25)' }}>Code Quality Deep Dive</p>
+                      <p className="text-[13px] leading-[1.85]" style={{ color: 'rgba(255,255,255,0.62)' }}>
+                        {parsed.code_quality_assessment}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ── Impact areas ── */}
+                  {parsed.impact_areas?.length > 0 && (
+                    <>
+                      <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
+                      <div className="space-y-2">
+                        <p className="text-[10.5px] font-bold uppercase tracking-[0.15em]"
+                          style={{ color: 'rgba(255,255,255,0.25)' }}>Areas Affected</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {parsed.impact_areas.map((area, i) => (
+                            <motion.div
+                              key={i}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.28 + i * 0.05 }}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', cursor: 'default' }}
+                            >
+                              <div className="w-1.5 h-1.5 rounded-full shrink-0"
+                                style={{ background: 'rgba(255,255,255,0.25)' }} />
+                              <span className="text-[12px] capitalize" style={{ color: 'rgba(255,255,255,0.50)' }}>
+                                {area.replace(/_/g, ' ')}
+                              </span>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                 </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            );
+          })()}
 
           {/* Security concerns */}
           {analysis.security_concerns?.length > 0 && (
@@ -313,7 +435,7 @@ export default function AnalysisDetailsPage() {
                 Start an AI chat session about this specific analysis
               </p>
             </div>
-            <Link href="/chat">
+            <Link href={`/chat?analysisId=${analysisId}`}>
               <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-semibold cursor-pointer transition-all duration-150"
                 style={{ background: 'rgba(106,171,142,0.12)', border: '1px solid rgba(106,171,142,0.25)', color: '#6aab8e' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(106,171,142,0.20)'; }}

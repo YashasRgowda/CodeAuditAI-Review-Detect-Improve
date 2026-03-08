@@ -537,9 +537,10 @@ Be thorough, technical, and precise. Return ONLY valid JSON."""
                 analysis_data=analysis_result,
                 repository_name=analysis_result.get("repository_name"),
             )
-        except Exception:
+        except Exception as e:
             # RAG storage is best-effort — don't break analysis if it fails
-            pass
+            import logging
+            logging.getLogger(__name__).warning(f"RAG storage failed (non-fatal): {e}")
 
 
 # Create global instance

@@ -49,7 +49,6 @@ services:
       - ./backend:/app
       - /app/venv
       - /app/.venv
-      - chroma_data:/app/chroma_data
     networks:
       - codeaudit-network
     depends_on:
@@ -62,7 +61,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  chroma_data:
 
 networks:
   codeaudit-network:
