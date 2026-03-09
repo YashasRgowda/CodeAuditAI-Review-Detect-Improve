@@ -2,7 +2,7 @@
 // analysis/quick/page.js — AI Analysis Hub: Quick · Streaming · Full (saves to DB)
 // Royal Wine theme · mode toggle · live log · score gauges · recommendations
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -96,7 +96,7 @@ function RecCard({ rec, index }) {
 /* ═══════════════════════════════════════
    PAGE
 ═══════════════════════════════════════ */
-export default function QuickAnalysisPage() {
+function QuickAnalysisPage() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const [repoId,      setRepoId]      = useState('');
@@ -561,5 +561,18 @@ export default function QuickAnalysisPage() {
 
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function QuickAnalysisPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="w-6 h-6 rounded-full border-2 animate-spin"
+          style={{ borderColor: 'rgba(159,18,57,0.50)', borderTopColor: 'transparent' }} />
+      </div>
+    }>
+      <QuickAnalysisPage />
+    </Suspense>
   );
 }
