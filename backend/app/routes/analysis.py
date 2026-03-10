@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.database import get_db
+from app.core.redis import CacheManager, TTL_ANALYSIS, TTL_ANALYSIS_LIST
 from app.core.security import get_github_user
 from app.models.analysis import Analysis
 from app.models.pr_analysis import PRAnalysis
@@ -232,6 +233,9 @@ async def create_analysis(
         db.commit()
         db.refresh(analysis)
 
+        # Invalidate analysis list caches — a new analysis was stored
+        CacheManager.delete_pattern("analyses:list:*")
+
         return analysis
     except Exception as e:
         db.rollback()
@@ -245,20 +249,31 @@ async def get_analyses(
     db: Session = Depends(get_db)
 ):
     """Get analysis history"""
-    query = db.query(Analysis)
+    cache_key = f"analyses:list:{repository_id or 'all'}:{limit}"
+    cached = CacheManager.get_json(cache_key)
+    if cached is not None:
+        return cached
 
+    query = db.query(Analysis)
     if repository_id:
         query = query.filter(Analysis.repository_id == repository_id)
 
     analyses = query.order_by(Analysis.created_at.desc()).limit(limit).all()
+
+    result = [AnalysisResponse.model_validate(a).model_dump() for a in analyses]
+    CacheManager.set_json(cache_key, result, TTL_ANALYSIS_LIST)
     return analyses
 
 
 @router.get("/{analysis_id}", response_model=DetailedAnalysisResponse)
 async def get_analysis(analysis_id: int, db: Session = Depends(get_db)):
     """Get detailed analysis by ID"""
-    analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    cache_key = f"analysis:{analysis_id}"
+    cached = CacheManager.get_json(cache_key)
+    if cached is not None:
+        return cached
 
+    analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
@@ -270,7 +285,7 @@ async def get_analysis(analysis_id: int, db: Session = Depends(get_db)):
     except Exception:
         repo_name = f"repo-{analysis.repository_id}"
 
-    return DetailedAnalysisResponse(
+    response = DetailedAnalysisResponse(
         id=analysis.id,
         summary=analysis.summary,
         full_analysis=changes.get("full_analysis", ""),
@@ -293,6 +308,9 @@ async def get_analysis(analysis_id: int, db: Session = Depends(get_db)):
         performance_score=analysis.performance_score,
         overall_score=changes.get("overall_score", 7),
     )
+
+    CacheManager.set_json(cache_key, response.model_dump(), TTL_ANALYSIS)
+    return response
 
 
 # ====================================================================
@@ -404,6 +422,10 @@ async def delete_analysis(analysis_id: int, db: Session = Depends(get_db)):
 
     db.delete(analysis)
     db.commit()
+
+    # Invalidate cached detail and all list variants
+    CacheManager.delete(f"analysis:{analysis_id}")
+    CacheManager.delete_pattern("analyses:list:*")
 
     return {"message": "Analysis deleted successfully"}
 

@@ -18,6 +18,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.core.redis import CacheManager, TTL_KB_INFO
 from app.schemas.rag import (
     RAGContextResponse,
     RAGKnowledgeBaseResponse,
@@ -45,6 +46,9 @@ async def store_analysis(request: RAGStoreRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to store analysis: {str(e)}")
+
+    # New document stored — invalidate the knowledge-base stats cache
+    CacheManager.delete("rag:kb_info")
 
     return RAGStoreResponse(
         document_id=result["document_id"],
@@ -81,11 +85,16 @@ async def search_analyses(request: RAGSearchRequest):
 @router.get("/rag/knowledge-base", response_model=RAGKnowledgeBaseResponse)
 async def get_knowledge_base():
     """Get an overview of the RAG knowledge base."""
+    cached = CacheManager.get_json("rag:kb_info")
+    if cached is not None:
+        return RAGKnowledgeBaseResponse(**cached)
+
     try:
         info = rag_service.get_knowledge_base_info()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get knowledge base info: {str(e)}")
 
+    CacheManager.set_json("rag:kb_info", info, TTL_KB_INFO)
     return RAGKnowledgeBaseResponse(**info)
 
 
@@ -97,6 +106,7 @@ async def clear_knowledge_base():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear knowledge base: {str(e)}")
 
+    CacheManager.delete("rag:kb_info")
     return result
 
 

@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.redis import CacheManager, TTL_COMMIT_DIFF, TTL_COMMITS_LIST, TTL_PR_FILES, TTL_PR_LIST, TTL_REPO_DETAIL, TTL_REPO_LIST
 from app.core.security import get_github_user
 from app.models.repository import Repository
 from app.models.user import User
@@ -75,6 +76,9 @@ async def add_github_repository(
         db.commit()
         db.refresh(repository)
 
+        # New repo added — invalidate user's repo list cache
+        CacheManager.delete(f"repos:user:{user.id}")
+
         return repository
 
     except HTTPException:
@@ -89,21 +93,34 @@ async def get_user_repositories(
     user: User = Depends(get_github_user),
 ):
     """Get user's added repositories for analysis"""
+    cache_key = f"repos:user:{user.id}"
+    cached = CacheManager.get_json(cache_key)
+    if cached is not None:
+        return cached
+
     repositories = db.query(Repository).filter(
         Repository.user_id == user.id
     ).order_by(Repository.created_at.desc()).all()
 
+    result = [RepositoryResponse.model_validate(r).model_dump() for r in repositories]
+    CacheManager.set_json(cache_key, result, TTL_REPO_LIST)
     return repositories
 
 
 @router.get("/{repo_id}", response_model=RepositoryResponse)
 async def get_repository(repo_id: int, db: Session = Depends(get_db)):
     """Get specific repository details"""
-    repository = db.query(Repository).filter(Repository.id == repo_id).first()
+    cache_key = f"repo:{repo_id}"
+    cached = CacheManager.get_json(cache_key)
+    if cached is not None:
+        return cached
 
+    repository = db.query(Repository).filter(Repository.id == repo_id).first()
     if not repository:
         raise HTTPException(status_code=404, detail="Repository not found")
 
+    result = RepositoryResponse.model_validate(repository).model_dump()
+    CacheManager.set_json(cache_key, result, TTL_REPO_DETAIL)
     return repository
 
 
@@ -128,6 +145,13 @@ async def remove_repository(repo_id: int, db: Session = Depends(get_db)):
         db.delete(repository)
         db.commit()
 
+        # Invalidate caches for this repo and the user's repo list
+        CacheManager.delete(f"repo:{repo_id}")
+        CacheManager.delete(f"repos:user:{repository.user_id}")
+        CacheManager.delete_pattern(f"commits:{repo_id}:*")
+        CacheManager.delete_pattern(f"commit_diff:{repo_id}:*")
+        CacheManager.delete_pattern(f"prs:{repo_id}:*")
+
         return {"message": "Repository removed successfully"}
 
     except Exception as e:
@@ -151,9 +175,16 @@ async def get_repository_commits(
     if not user:
         raise HTTPException(status_code=401, detail="Repository owner not found")
 
+    cache_key = f"commits:{repo_id}:{limit}"
+    cached = CacheManager.get_json(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         commits = await github_service.get_recent_commits(user, repository.repo_name, limit)
-        return [CommitResponse(**commit) for commit in commits]
+        result = [CommitResponse(**c).model_dump() for c in commits]
+        CacheManager.set_json(cache_key, result, TTL_COMMITS_LIST)
+        return commits
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch commits: {str(e)}")
 
@@ -174,8 +205,15 @@ async def get_commit_diff(
     if not user:
         raise HTTPException(status_code=401, detail="Repository owner not found")
 
+    # Commit diffs are immutable — cache for 24 hours
+    cache_key = f"commit_diff:{repo_id}:{commit_sha}"
+    cached = CacheManager.get_json(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         commit_diff = await github_service.get_commit_diff(user, repository.repo_name, commit_sha)
+        CacheManager.set_json(cache_key, commit_diff, TTL_COMMIT_DIFF)
         return CommitDiffResponse(**commit_diff)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch commit diff: {str(e)}")
@@ -197,9 +235,16 @@ async def get_repository_pull_requests(
     if not user:
         raise HTTPException(status_code=401, detail="Repository owner not found")
 
+    cache_key = f"prs:{repo_id}:{state}:{limit}"
+    cached = CacheManager.get_json(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         prs = await github_service.get_repository_pull_requests(user, repository.repo_name, state, limit)
-        return [GitHubPullRequestResponse(**pr) for pr in prs]
+        result = [GitHubPullRequestResponse(**pr).model_dump() for pr in prs]
+        CacheManager.set_json(cache_key, result, TTL_PR_LIST)
+        return prs
     except Exception:
         return []
 
@@ -219,8 +264,14 @@ async def get_pull_request_files(
     if not user:
         raise HTTPException(status_code=401, detail="Repository owner not found")
 
+    cache_key = f"pr_files:{repo_id}:{pr_number}"
+    cached = CacheManager.get_json(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         pr_files = await github_service.get_pull_request_files(user, repository.repo_name, pr_number)
+        CacheManager.set_json(cache_key, pr_files, TTL_PR_FILES)
         return PullRequestFilesResponse(**pr_files)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to get PR files: {str(e)}")
