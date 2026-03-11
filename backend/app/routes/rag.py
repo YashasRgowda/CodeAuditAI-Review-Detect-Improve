@@ -18,7 +18,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.core.redis import CacheManager, TTL_KB_INFO
+from app.core.redis import TTL_KB_INFO, CacheManager
 from app.schemas.rag import (
     RAGContextResponse,
     RAGKnowledgeBaseResponse,

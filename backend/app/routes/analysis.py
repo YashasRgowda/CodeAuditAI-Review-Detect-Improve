@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.database import get_db
-from app.core.redis import CacheManager, TTL_ANALYSIS, TTL_ANALYSIS_LIST
+from app.core.redis import TTL_ANALYSIS, TTL_ANALYSIS_LIST, CacheManager
 from app.core.security import get_github_user
 from app.models.analysis import Analysis
 from app.models.pr_analysis import PRAnalysis
