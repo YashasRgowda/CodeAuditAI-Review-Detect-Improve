@@ -228,32 +228,44 @@ The dashboard acts as the control center of the platform. It gives users a quick
 ---
 
 ### Repository Management
+<img width="2048" height="1330" alt="1" src="https://github.com/user-attachments/assets/c8521080-65ac-4d7a-9eff-5dfd50742c9a" />
+<img width="2048" height="1330" alt="2" src="https://github.com/user-attachments/assets/9fd86f12-1118-4ede-8cf3-ba5ca65b4940" />
+<img width="2048" height="1330" alt="3" src="https://github.com/user-attachments/assets/729cd8ab-878f-4168-b6a2-11258697cede" />
+<img width="2048" height="1330" alt="4" src="https://github.com/user-attachments/assets/065cd09e-e3c4-433c-b175-29b13a40f4a1" />
+<img width="2048" height="1330" alt="3" src="https://github.com/user-attachments/assets/4d0c90a9-0ad5-4a4e-ab00-ffda7deecb20" />
+<img width="2048" height="1330" alt="4" src="https://github.com/user-attachments/assets/f2523b43-28e0-4f7e-b1a8-82d95fbb0f26" />
 
-![Repository Management]()
 
 The repository section allows users to connect and manage GitHub repositories, browse available projects, and move into commit or pull request analysis flows. This is the bridge between GitHub data and AI-powered review workflows.
 
 ---
 
 ### Commit / PR Analysis
+<img width="2048" height="1330" alt="1" src="https://github.com/user-attachments/assets/a90688cb-f9bc-40ae-8c3e-59d59642c518" />
+<img width="2048" height="1330" alt="2" src="https://github.com/user-attachments/assets/eec0ffe0-56d0-4573-a261-bdc621988d19" />
 
-![Commit and PR Analysis]()
+
+
 
 The analysis page presents the detailed output of a review, including issue summaries, risk classification, impact understanding, and AI-generated insights. It helps developers see both the technical findings and the reasoning behind them.
 
 ---
 
 ### Multi-Agent Analysis
+<img width="2048" height="1330" alt="1" src="https://github.com/user-attachments/assets/a5b28ad7-daf6-4b08-a44b-67b2cfb14906" />
+<img width="2048" height="1330" alt="2" src="https://github.com/user-attachments/assets/9d1ea243-54c8-49ea-9b4a-05adf41c9ccf" />
+<img width="2048" height="1330" alt="3" src="https://github.com/user-attachments/assets/a07cf942-caf9-492d-9b9d-8449d3af2fef" />
 
-![Multi-Agent Analysis]()
+
 
 This page showcases one of the strongest parts of the platform: multiple AI agents reviewing the same change from different perspectives. Instead of a single flat response, users get security, performance, and architecture intelligence combined into a richer review experience.
 
 ---
 
 ### Real-Time Streaming Analysis
+<img width="947" height="164" alt="Screenshot 2026-03-21 at 5 50 34 PM" src="https://github.com/user-attachments/assets/bf803bc4-4483-41c7-872a-fe1255f2c35f" />
 
-![Streaming Analysis]()
+
 
 Streaming analysis makes the review process feel alive. Rather than waiting for a single final response, users can see progress updates while the system processes the code, which improves transparency and user trust.
 
@@ -261,15 +273,18 @@ Streaming analysis makes the review process feel alive. Rather than waiting for 
 
 ### AI Chat
 
-![AI Chat]()
+<img width="2048" height="1330" alt="1" src="https://github.com/user-attachments/assets/76369165-1e5b-4186-9a0f-472e879c8380" />
+<img width="2048" height="1330" alt="2" src="https://github.com/user-attachments/assets/cdc32cf6-937b-4e15-a4c1-201b250b09b2" />
+<img width="2048" height="1330" alt="3" src="https://github.com/user-attachments/assets/45baf619-5baa-4928-9ce3-0198f2f54610" />
 
 The chat interface transforms a static report into an interactive debugging experience. Users can ask follow-up questions, request clarification, explore risks in more depth, and get more practical guidance based on the existing analysis.
 
 ---
 
 ### Auto-Fix Engine
+<img width="2048" height="1330" alt="1" src="https://github.com/user-attachments/assets/46cc6c3d-1b3e-460d-8132-2545a34aaf4f" />
 
-![Auto-Fix Engine]()
+
 
 The auto-fix engine helps close the gap between finding an issue and fixing it. It provides suggested improvements in a developer-friendly format, making the platform useful not only for review but also for implementation support.
 
